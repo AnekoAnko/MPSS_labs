@@ -2,130 +2,157 @@ package com.example.lab5_autorotatemanager.ble
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.lab5_autorotatemanager.AppGraph
+import com.example.lab5_autorotatemanager.helpers.ble.BleConnectionState
+import com.example.lab5_autorotatemanager.helpers.ble.BleDevice
+import com.example.lab5_autorotatemanager.helpers.ble.BleLogger
+import com.example.lab5_autorotatemanager.helpers.ble.BleProfile
+import com.example.lab5_autorotatemanager.helpers.ble.BluetoothEnvironment
+import com.example.lab5_autorotatemanager.helpers.ble.IBleConnector
+import com.example.lab5_autorotatemanager.helpers.ble.IBleScanner
+import com.example.lab5_autorotatemanager.helpers.ble.LogType
+import com.example.lab5_autorotatemanager.helpers.ble.MockBleConnector
+import com.example.lab5_autorotatemanager.helpers.ble.MockBleScanner
+import com.example.lab5_autorotatemanager.repository.SystemStateRepository
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Повний стан екрана BLE, який UI отримує через StateFlow. */
-data class BleUiState(
-    val isScanning: Boolean = false,
-    val devices: List<BleDevice> = emptyList(),
-    val connectionState: BleConnectionState = BleConnectionState.DISCONNECTED,
-    val connectedDevice: BleDevice? = null,
-    val lastStatus: String? = null,
-    val interference: Boolean = false
-)
+/**
+ * ЛР №2: ViewModel вкладки «BLE-хаб». Працює з Bluetooth лише через помічники
+ * (IBleScanner, IBleConnector — Mock-реалізація віртуального AR-Hub-46).
+ */
+class BleViewModel(
+    private val environment: BluetoothEnvironment = BluetoothEnvironment(AppGraph.app),
+    private val system: SystemStateRepository = AppGraph.systemState
+) : ViewModel() {
 
-class BleViewModel : ViewModel() {
-
-    val logger = BleLogger()
+    private val logger = BleLogger()
     private val scanner: IBleScanner = MockBleScanner(logger)
     private val mockConnector = MockBleConnector(logger, viewModelScope)
     private val connector: IBleConnector = mockConnector
 
-    private val _uiState = MutableStateFlow(BleUiState())
-    val uiState: StateFlow<BleUiState> = _uiState.asStateFlow()
+    private val _state = MutableStateFlow(BleState())
+    val state: StateFlow<BleState> = _state.asStateFlow()
 
-    /** Рядки «терміналу». */
-    val log: StateFlow<List<BleLogEntry>> = logger.entries
+    private val _events = Channel<BleEvent>(Channel.BUFFERED)
+    val events = _events.receiveAsFlow()
 
     private var scanJob: Job? = null
     private var connectJob: Job? = null
-    private var lastOrientation: String? = null
 
     init {
-        // Стан з'єднання з шару Bluetooth → стан UI
+        // Журнал обміну → State
+        viewModelScope.launch { logger.entries.collect { log -> _state.update { it.copy(log = log) } } }
+
+        // Стан з'єднання з шару Bluetooth → State
         viewModelScope.launch {
-            connector.connectionState.collect { state ->
-                _uiState.update {
+            connector.connectionState.collect { cs ->
+                _state.update {
                     it.copy(
-                        connectionState = state,
-                        connectedDevice = if (state == BleConnectionState.DISCONNECTED) null else it.connectedDevice,
-                        lastStatus = if (state == BleConnectionState.DISCONNECTED) null else it.lastStatus
+                        connectionState = cs,
+                        connectedDevice = if (cs == BleConnectionState.DISCONNECTED) null else it.connectedDevice,
+                        lastStatus = if (cs == BleConnectionState.DISCONNECTED) null else it.lastStatus
                     )
                 }
             }
         }
         // Notify від пристрою → останній статус
         viewModelScope.launch {
-            connector.notifications.collect { n -> _uiState.update { it.copy(lastStatus = n.value) } }
+            connector.notifications.collect { n -> _state.update { it.copy(lastStatus = n.value) } }
+        }
+        // ЛР №1 → ЛР №2: нова орієнтація пристрою → характеристика ORIENTATION на хабі
+        viewModelScope.launch {
+            system.orientation.drop(1).collect { orientation ->
+                if (_state.value.connectionState.isLinkUp) {
+                    connector.sendData("ORIENT:$orientation", BleProfile.CHAR_ORIENTATION)
+                }
+            }
         }
     }
 
-    fun onEnvironmentChecked(adapterAvailable: Boolean, permissionsGranted: Boolean) {
-        logger.log(
-            LogType.INFO,
-            "BluetoothAdapter: ${if (adapterAvailable) "є" else "відсутній"}; " +
-                "дозволи: ${if (permissionsGranted) "надано" else "не надано"}; режим: Mock (IBleConnector → MockBleConnector)"
-        )
+    // ЄДИНИЙ вхід у ViewModel
+    fun onAction(action: BleAction) {
+        when (action) {
+            BleAction.ScanClick -> _events.trySend(BleEvent.RequestPermissions(BluetoothEnvironment.REQUIRED_PERMISSIONS))
+            is BleAction.PermissionsResult -> onPermissions(action.granted)
+            BleAction.StopScan -> scanJob?.cancel()
+            is BleAction.Connect -> connect(action.device)
+            BleAction.Disconnect -> disconnect()
+            is BleAction.CommandChanged -> _state.update { it.copy(commandText = action.text) }
+            is BleAction.SendCommand -> sendCommand(action.command)
+            is BleAction.SetInterference -> setInterference(action.enabled)
+            BleAction.ClearLog -> logger.clear()
+        }
     }
 
-    fun startScan() {
-        if (scanJob?.isActive == true || _uiState.value.connectionState != BleConnectionState.DISCONNECTED) return
-        _uiState.update { it.copy(isScanning = true, devices = emptyList()) }
+    private fun onPermissions(granted: Boolean) {
+        val adapter = environment.isAdapterAvailable()
+        logger.log(
+            LogType.INFO,
+            "BluetoothAdapter: ${if (adapter) "є" else "відсутній"}; " +
+                "дозволи: ${if (granted) "надано" else "не надано"}; режим: Mock (IBleConnector → MockBleConnector)"
+        )
+        // Mock-шар не використовує радіомодуль, тому сканування імітуємо навіть без дозволів
+        startScan()
+    }
+
+    private fun startScan() {
+        if (scanJob?.isActive == true || _state.value.connectionState != BleConnectionState.DISCONNECTED) return
+        _state.update { it.copy(isScanning = true, devices = emptyList()) }
         scanJob = viewModelScope.launch {
             try {
                 scanner.scan(SCAN_DURATION_MS).collect { device ->
-                    _uiState.update { s ->
+                    _state.update { s ->
                         if (s.devices.any { it.address == device.address }) s
                         else s.copy(devices = s.devices + device)
                     }
                 }
             } finally {
-                _uiState.update { it.copy(isScanning = false) }
+                _state.update { it.copy(isScanning = false) }
             }
         }
     }
 
-    fun stopScan() {
-        scanJob?.cancel()
-    }
-
-    fun connect(device: BleDevice) {
-        if (_uiState.value.connectionState != BleConnectionState.DISCONNECTED) return
-        stopScan() // сканування під час підключення знижує стабільність з'єднання
-        _uiState.update { it.copy(connectedDevice = device) }
+    private fun connect(device: BleDevice) {
+        if (_state.value.connectionState != BleConnectionState.DISCONNECTED) return
+        scanJob?.cancel() // сканування під час підключення знижує стабільність з'єднання
+        _state.update { it.copy(connectedDevice = device) }
         connectJob = viewModelScope.launch {
             if (connector.connect(device)) {
                 connector.readCharacteristic(BleProfile.CHAR_DEVICE_STATUS)?.let { status ->
-                    _uiState.update { it.copy(lastStatus = status) }
+                    _state.update { it.copy(lastStatus = status) }
                 }
-                lastOrientation?.let { connector.sendData("ORIENT:$it", BleProfile.CHAR_ORIENTATION) }
+                connector.sendData("ORIENT:${system.orientation.value}", BleProfile.CHAR_ORIENTATION)
             } else {
-                _uiState.update { it.copy(connectedDevice = null) }
+                _state.update { it.copy(connectedDevice = null) }
             }
         }
     }
 
-    fun disconnect() {
+    private fun disconnect() {
         connectJob?.cancel()
         connector.disconnect()
     }
 
-    fun sendCommand(text: String) {
-        val command = text.trim()
+    private fun sendCommand(preset: String?) {
+        val command = (preset ?: _state.value.commandText).trim()
         if (command.isEmpty()) return
+        if (preset == null) _state.update { it.copy(commandText = "") }
         viewModelScope.launch { connector.sendData(command, BleProfile.CHAR_COMMAND) }
     }
 
-    /** Викликається з MainActivity, коли Auto-Rotate Manager (ЛР №1) визначив новий стан. */
-    fun onOrientationChanged(orientation: String) {
-        lastOrientation = orientation
-        if (_uiState.value.connectionState.isLinkUp) {
-            viewModelScope.launch { connector.sendData("ORIENT:$orientation", BleProfile.CHAR_ORIENTATION) }
-        }
-    }
-
-    fun setInterference(enabled: Boolean) {
+    private fun setInterference(enabled: Boolean) {
         mockConnector.interferenceEnabled = enabled
-        _uiState.update { it.copy(interference = enabled) }
+        _state.update { it.copy(interference = enabled) }
         logger.log(LogType.WARN, "Імітація перешкод: ${if (enabled) "УВІМКНЕНО (втрати 30 %, обриви)" else "вимкнено"}")
     }
-
-    fun clearLog() = logger.clear()
 
     override fun onCleared() {
         connector.disconnect()

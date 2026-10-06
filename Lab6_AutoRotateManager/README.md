@@ -1,6 +1,9 @@
 # ЛР №6 — On-device AI: класифікація активності TensorFlow Lite
 
-Проєкт **Lab6_AutoRotateManager** (пакет `com.example.lab6_autorotatemanager`) — копія ЛР №5 з новим пакетом `ml/`.
+Проєкт **Lab6_AutoRotateManager** (пакет `com.example.lab6_autorotatemanager`) — копія ЛР №5 з новим екраном `ai/`.
+
+Архітектура — **MVI** за методичкою «Архітектура додатку: MVI»: кожен екран — папка з `XxxContract` (State + Action + Event), `XxxViewModel` (єдиний вхід `onAction()`, `Channel` для Event) і `XxxScreen`; робота з Android API — у `helpers/`, дані — через `repository/` (один екземпляр на весь додаток, `AppGraph`).
+
 Модель уже навчена й лежить в `app/src/main/assets`, тож **Teachable Machine та окреме навчання не потрібні**.
 
 ## Що де лежить
@@ -9,16 +12,16 @@
 |---|---|
 | `app/src/main/assets/activity_classifier.tflite` | Модель 1D-CNN (14,2 КБ, float32). Вхід `[1, 20, 3]`, вихід `[1, 4]` |
 | `app/src/main/assets/activity_labels.txt` | Назви класів у порядку виходів: STILL, WALKING, RUNNING, ANOMALY |
-| `ml/ActivityClass.kt` | Матриця станів (enum) + `Prediction` (ймовірності, час inference, `format()` → «Walking (92%)») |
-| `ml/SensorWindowBuffer.kt` | Кільцевий буфер на 20 вимірів (~1 с при 20 Гц), проріджування за часом, `toModelInput()` — перетворення сирих даних у вхід моделі |
-| `ml/ActivityClassifier.kt` | ML-Wrapper: `loadModelFile()` (memory-map з assets) + `Interpreter` + `classify(sensorWindow)` |
-| `ml/PredictionSmoother.kt` | Підтвердження класу: 2 прогнози поспіль із впевненістю ≥ 60 % |
-| `ml/AiInsightsViewModel.kt` | Буфер → `Dispatchers.Default` → модель → StateFlow для UI; `stableActivity` для інтеграції |
-| `ui/AiInsightsCard.kt` | Блок «AI Insights» на вкладці «Сенсор»: «Current Activity: Running (91%)», смуги ймовірностей, час inference, потік |
-| `MainActivity.kt` | Сирі `event.values` → `aiViewModel.onRawSample()`; сенсор 20 Гц; підписка на `stableActivity` |
-| `analytics/RecordPolicy.kt`, `SensorViewModel.kt` | `fastMode`: при «Біг» запис у Room кожні 200 мс (ЛР №5) |
-| `control/ControlViewModel.kt`, `ControlModels.kt` | `onAiActivity()`: «Аномалія» → сирена + прожектор, джерело `AI`; вимкнення через 5 с після зникнення (ЛР №4) |
-| `ui/ControlScreen.kt`, `ui/AnalyticsScreen.kt` | Банер «ТРИВОГА (ШІ)» і позначка прискореного запису |
+| `ai/AiContract.kt` | MVI-контракт екрана AI: `ActivityClass` (матриця станів), `Prediction` (`format()` → «Walking (92%)»), `AiState`, `AiAction`, `AiEvent` |
+| `ai/SensorWindowBuffer.kt` | Кільцевий буфер на 20 вимірів (~1 с при 20 Гц), проріджування за часом, `toModelInput()` — перетворення сирих даних у вхід моделі |
+| `helpers/ActivityClassifier.kt` | Помічник (ML-Wrapper): `loadModelFile()` (memory-map з assets) + `Interpreter` + `classify(sensorWindow)` |
+| `ai/PredictionSmoother.kt` | Підтвердження класу: 2 прогнози поспіль із впевненістю ≥ 60 % |
+| `ai/AiViewModel.kt` | `SensorHub.raw` → буфер → `Dispatchers.Default` → модель → State; підтверджений клас → `SystemStateRepository.aiActivity` |
+| `ai/AiScreen.kt` | Блок «AI Insights» на вкладці «Сенсор»: «Current Activity: Running (91%)», смуги ймовірностей, час inference, потік |
+| `monitor/MonitorViewModel.kt` | Сенсор 20 Гц через `helpers/SensorReader` (`MonitorAction.Start/Stop` з onResume/onPause), сирі дані → `SensorHub` |
+| `analytics/RecordPolicy.kt`, `AnalyticsViewModel.kt` | `fastMode`: при «Біг» запис у Room кожні 200 мс (ЛР №5) |
+| `control/ControlViewModel.kt`, `ControlContract.kt` | «Аномалія» → сирена + прожектор, джерело `AI`; вимкнення через 5 с після зникнення (ЛР №4) |
+| `control/ControlScreen.kt`, `analytics/AnalyticsScreen.kt` | Банер «ТРИВОГА (ШІ)» і позначка прискореного запису |
 | `app/src/test/.../SensorWindowBufferTest.kt` | Unit-тести буфера і згладжування |
 | `ml_training/` | `train_activity_model.py` (навчання й експорт), `motion_patterns.py` (генератор патернів), `confusion_matrix.csv` |
 | `tools/emulator_motion.py` | «Програвач» ходьби/бігу/тряски для емулятора через консоль (`sensor set acceleration`) |

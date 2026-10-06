@@ -1,9 +1,9 @@
 package com.example.lab6_autorotatemanager
 
-import com.example.lab6_autorotatemanager.ml.ActivityClass
-import com.example.lab6_autorotatemanager.ml.Prediction
-import com.example.lab6_autorotatemanager.ml.PredictionSmoother
-import com.example.lab6_autorotatemanager.ml.SensorWindowBuffer
+import com.example.lab6_autorotatemanager.ai.ActivityClass
+import com.example.lab6_autorotatemanager.ai.Prediction
+import com.example.lab6_autorotatemanager.ai.PredictionSmoother
+import com.example.lab6_autorotatemanager.ai.SensorWindowBuffer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

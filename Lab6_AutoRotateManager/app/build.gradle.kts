@@ -65,6 +65,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    // MVI: collectAsStateWithLifecycle() — збирає State лише поки екран видимий
+    implementation(libs.androidx.lifecycle.runtime.compose)
 
     // ЛР №3: REST-клієнт, JSON, логування HTTP
     implementation("com.squareup.retrofit2:retrofit:2.11.0")

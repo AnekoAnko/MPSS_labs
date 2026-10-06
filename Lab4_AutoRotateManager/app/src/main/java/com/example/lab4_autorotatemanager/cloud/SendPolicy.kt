@@ -1,5 +1,6 @@
 package com.example.lab4_autorotatemanager.cloud
 
+import com.example.lab4_autorotatemanager.repository.SensorData
 import kotlin.math.abs
 import kotlin.math.max
 
