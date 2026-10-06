@@ -1,0 +1,94 @@
+import java.util.Properties
+
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+    // ЛР №5: KSP генерує реалізацію DAO/бази Room на етапі компіляції
+    alias(libs.plugins.ksp)
+}
+
+// ЛР №3: секрети читаємо з local.properties (файл не потрапляє в Git)
+val localProps = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+android {
+    namespace = "com.example.lab6_autorotatemanager"
+    compileSdk {
+        version = release(37)
+    }
+
+    defaultConfig {
+        applicationId = "com.example.lab6_autorotatemanager"
+        minSdk = 24
+        targetSdk = 37
+        versionCode = 1
+        versionName = "1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "FIREBASE_DB_URL", "\"${localProps.getProperty("FIREBASE_DB_URL", "")}\"")
+        buildConfigField("String", "FIREBASE_AUTH", "\"${localProps.getProperty("FIREBASE_AUTH", "")}\"")
+        // ЛР №4: параметри Firebase SDK (якщо порожні — використовується REST Streaming)
+        buildConfigField("String", "FIREBASE_APP_ID", "\"${localProps.getProperty("FIREBASE_APP_ID", "")}\"")
+        buildConfigField("String", "FIREBASE_API_KEY", "\"${localProps.getProperty("FIREBASE_API_KEY", "")}\"")
+    }
+
+    buildTypes {
+        release {
+            optimization {
+                enable = false
+            }
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+    // ЛР №6: модель .tflite не стискаємо в APK — тоді її можна відобразити в пам'ять (mmap) через openFd()
+    androidResources {
+        noCompress += "tflite"
+    }
+}
+
+dependencies {
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+
+    // ЛР №3: REST-клієнт, JSON, логування HTTP
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // ЛР №4: Firebase Realtime Database SDK (ValueEventListener)
+    implementation("com.google.firebase:firebase-database:22.0.2")
+
+    // ЛР №5: локальна БД Room (SQLite) + генератор коду через KSP
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+
+    // ЛР №5: графіки (LineChart) — через JitPack, див. settings.gradle.kts
+    implementation(libs.mpandroidchart)
+
+    // ЛР №6: TensorFlow Lite — локальний inference моделі activity_classifier.tflite
+    implementation(libs.tensorflow.lite)
+    testImplementation(libs.junit)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.junit)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+}
