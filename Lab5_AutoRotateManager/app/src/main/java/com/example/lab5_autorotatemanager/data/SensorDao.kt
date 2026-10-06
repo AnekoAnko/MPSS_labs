@@ -1,0 +1,79 @@
+package com.example.lab5_autorotatemanager.data
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * ЛР №5: DAO (Data Access Object) — перелік операцій із таблицею sensor_records.
+ * Room сам генерує реалізацію (SensorDao_Impl) на етапі компіляції через KSP
+ * і перевіряє SQL-запити ще до запуску додатка.
+ *
+ *  • suspend-функції виконуються в корутині й не блокують UI-потік;
+ *  • функції, що повертають Flow, — «живі» запити: Room повторно виконує їх
+ *    після кожної зміни таблиці і віддає новий список (графік оновлюється сам).
+ */
+@Dao
+interface SensorDao {
+
+    /** Запис одного виміру; повертає id нового рядка. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(record: SensorRecord): Long
+
+    /**
+     * Останні [limit] записів для графіка. Внутрішній SELECT бере найновіші,
+     * зовнішній упорядковує їх за зростанням часу (зліва направо на осі X).
+     */
+    @Query(
+        """
+        SELECT * FROM (
+            SELECT * FROM sensor_records ORDER BY timestamp DESC LIMIT :limit
+        ) ORDER BY timestamp ASC
+        """
+    )
+    fun observeLatest(limit: Int): Flow<List<SensorRecord>>
+
+    /** Те саме одноразово (для перевірок і тестів). */
+    @Query("SELECT * FROM sensor_records ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun getLatest(limit: Int): List<SensorRecord>
+
+    /** Історія спрацювань системи безпеки (найновіші зверху). */
+    @Query("SELECT * FROM sensor_records WHERE action_triggered = 1 ORDER BY timestamp DESC LIMIT :limit")
+    fun observeTriggered(limit: Int): Flow<List<SensorRecord>>
+
+    /** Загальна кількість рядків у таблиці. */
+    @Query("SELECT COUNT(*) FROM sensor_records")
+    fun observeCount(): Flow<Int>
+
+    /** Агрегати за період (наприклад, за останню годину) — рахує сама SQLite. */
+    @Query(
+        """
+        SELECT COUNT(*) AS count,
+               MIN(sensor_value) AS minValue,
+               MAX(sensor_value) AS maxValue,
+               AVG(sensor_value) AS avgValue,
+               SUM(action_triggered) AS triggers
+        FROM sensor_records WHERE timestamp >= :since
+        """
+    )
+    suspend fun statsSince(since: Long): PeriodStats
+
+    /** Ротація: видалити записи, старші за вказаний момент. Повертає кількість видалених. */
+    @Query("DELETE FROM sensor_records WHERE timestamp < :before")
+    suspend fun deleteOlderThan(before: Long): Int
+
+    /** Повне очищення історії (кнопка на екрані «Аналітика»). */
+    @Query("DELETE FROM sensor_records")
+    suspend fun deleteAll()
+}
+
+/** Результат агрегатного запиту statsSince (поля = псевдоніми AS у SQL). */
+data class PeriodStats(
+    val count: Int,
+    val minValue: Float?,
+    val maxValue: Float?,
+    val avgValue: Float?,
+    val triggers: Int?
+)
