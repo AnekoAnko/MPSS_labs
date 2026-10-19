@@ -3,7 +3,7 @@ package com.example.lab6_autorotatemanager.monitor
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.hardware.SensorManager
+import com.example.lab6_autorotatemanager.helpers.SensorReader
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -139,7 +139,7 @@ fun OrientationIndicator(x: Float, y: Float, angle: Float) {
             drawLine(primary, tip, Offset(tip.x + 20f, tip.y + 28f), strokeWidth = 10f, cap = StrokeCap.Round)
         }
 
-        val g = SensorManager.GRAVITY_EARTH
+        val g = SensorReader.GRAVITY
         val dot = Offset(
             center.x + (-x / g).coerceIn(-1f, 1f) * r,
             center.y + (y / g).coerceIn(-1f, 1f) * r

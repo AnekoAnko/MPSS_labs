@@ -60,6 +60,22 @@ interface SensorDao {
     )
     suspend fun statsSince(since: Long): PeriodStats
 
+    /** Записи, які ще не відправлено в хмару (synced = false), від старих до нових. */
+    @Query("SELECT * FROM sensor_records WHERE synced = 0 ORDER BY timestamp ASC LIMIT :limit")
+    suspend fun unsynced(limit: Int): List<SensorRecord>
+
+    /** Позначити запис як відправлений у хмару. */
+    @Query("UPDATE sensor_records SET synced = 1 WHERE id = :id")
+    suspend fun markSynced(id: Long)
+
+    /** Чи відправлено запис (null — запису вже немає). */
+    @Query("SELECT synced FROM sensor_records WHERE id = :id")
+    suspend fun isSynced(id: Long): Boolean?
+
+    /** Скільки записів чекає відправки — «живий» лічильник для картки хмари. */
+    @Query("SELECT COUNT(*) FROM sensor_records WHERE synced = 0")
+    fun observeUnsyncedCount(): Flow<Int>
+
     /** Ротація: видалити записи, старші за вказаний момент. Повертає кількість видалених. */
     @Query("DELETE FROM sensor_records WHERE timestamp < :before")
     suspend fun deleteOlderThan(before: Long): Int

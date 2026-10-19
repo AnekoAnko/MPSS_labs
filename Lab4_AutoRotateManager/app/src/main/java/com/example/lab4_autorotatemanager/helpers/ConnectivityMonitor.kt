@@ -8,10 +8,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Стежить за наявністю інтернету (потрібен дозвіл ACCESS_NETWORK_STATE). */
+/**
+ * Помічник: стежить за наявністю інтернету (потрібен дозвіл ACCESS_NETWORK_STATE).
+ * start()/stop() можна викликати багато разів (onStart/onStop Activity) — подвійної реєстрації не буде.
+ */
 class ConnectivityMonitor(context: Context) {
 
     private val cm = context.getSystemService(ConnectivityManager::class.java)
+    private var registered = false
 
     private val _isOnline = MutableStateFlow(checkNow())
     val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
@@ -26,9 +30,18 @@ class ConnectivityMonitor(context: Context) {
         }
     }
 
-    fun start() = cm.registerDefaultNetworkCallback(callback)
+    fun start() {
+        if (registered) return
+        _isOnline.value = checkNow()   // поки callback був знятий, мережа могла змінитися
+        cm.registerDefaultNetworkCallback(callback)
+        registered = true
+    }
 
-    fun stop() = cm.unregisterNetworkCallback(callback)
+    fun stop() {
+        if (!registered) return
+        cm.unregisterNetworkCallback(callback)
+        registered = false
+    }
 
     private fun checkNow(): Boolean =
         cm.getNetworkCapabilities(cm.activeNetwork)

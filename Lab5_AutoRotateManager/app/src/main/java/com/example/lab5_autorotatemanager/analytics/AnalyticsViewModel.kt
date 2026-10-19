@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.lab5_autorotatemanager.AppGraph
 import com.example.lab5_autorotatemanager.control.DecisionEngine
 import com.example.lab5_autorotatemanager.helpers.SensorHub
-import com.example.lab5_autorotatemanager.repository.SensorRecord
+import com.example.lab5_autorotatemanager.repository.SensorReading
 import com.example.lab5_autorotatemanager.repository.SensorRepository
 import com.example.lab5_autorotatemanager.repository.SystemStateRepository
 import kotlinx.coroutines.CancellationException
@@ -17,8 +17,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -30,7 +28,7 @@ import java.util.Locale
  *     → AnalyticsViewModel (RecordPolicy)
  *       → SensorRepository (Dispatchers.IO) → SensorDao → Room → SQLite (auto_rotate.db)
  *
- * Запис іде «вниз» через repository.insert(), а дані для графіка піднімаються «вгору»
+ * Запис іде «вниз» через repository.save() (спершу Room, потім хмара), а дані для графіка піднімаються «вгору»
  * як Flow: Room сам повідомляє про нові рядки, і ViewModel кладе їх у State.
  */
 class AnalyticsViewModel(
@@ -46,9 +44,6 @@ class AnalyticsViewModel(
     /** Стан тривоги на попередньому вимірі — щоб зловити саме момент спрацювання. */
     private var wasAlarm = false
     private var writesSinceCleanup = 0
-
-    /** Записи виконуються по черзі (FIFO), щоб id у таблиці йшли в порядку вимірів. */
-    private val writeMutex = Mutex()
 
     private val _state = MutableStateFlow(AnalyticsState())
     val state: StateFlow<AnalyticsState> = _state.asStateFlow()
@@ -75,7 +70,7 @@ class AnalyticsViewModel(
         // Виміри: кут нахилу з даних акселерометра після фільтра ЛР №1
         viewModelScope.launch {
             hub.filtered.collect { s ->
-                onSample(DecisionEngine.tiltDegrees(s.x, s.y, s.z), system.orientation.value, system.alarmActive.value)
+                onSample(s.x, s.y, s.z, system.orientation.value, system.alarmActive.value)
             }
         }
     }
@@ -88,28 +83,27 @@ class AnalyticsViewModel(
         }
     }
 
-    private fun onSample(sensorValue: Float, orientation: String, alarmActive: Boolean) {
+    private fun onSample(x: Float, y: Float, z: Float, orientation: String, alarmActive: Boolean) {
         val triggered = alarmActive && !wasAlarm   // фронт 0 → 1: актуатори щойно ввімкнулися
         wasAlarm = alarmActive
         if (!_state.value.recording) return
 
+        val tilt = DecisionEngine.tiltDegrees(x, y, z)
         val now = clock()
-        val reason = policy.check(sensorValue, now, force = triggered) ?: return
-        val record = SensorRecord(
-            timestamp = now,
-            sensorValue = Math.round(sensorValue * 10f) / 10f,
-            actionTriggered = triggered,
-            orientation = orientation
-        )
+        val reason = policy.check(tilt, now, force = triggered) ?: return
+        val reading = SensorReading(x, y, z, tilt, orientation, actionTriggered = triggered, timestamp = now)
 
         viewModelScope.launch {
             try {
-                val id = writeMutex.withLock { repository.insert(record) }   // усередині — withContext(Dispatchers.IO)
-                Log.d(TAG, "INSERT #$id ${record.sensorValue}° action=${record.actionTriggered} (${reason.label})")
+                // Репозиторій сам вирішує, куди писати: спершу Room, потім хмара (synced = true)
+                val cloud = repository.save(reading)
+                val where = if (cloud.isSuccess) "☁ у хмарі" else "лише локально · Pending"
+                val value = "%.1f".format(tilt)
+                Log.d(TAG, "INSERT $value° action=$triggered (${reason.label}) → $where")
                 _state.update {
                     it.copy(
                         writes = it.writes + 1,
-                        lastWrite = "#$id · ${format(now)} · ${record.sensorValue}° · ${reason.label}",
+                        lastWrite = "${format(now)} · $value° · ${reason.label} · $where",
                         error = null
                     )
                 }

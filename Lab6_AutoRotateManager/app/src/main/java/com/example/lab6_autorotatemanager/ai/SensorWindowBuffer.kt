@@ -1,5 +1,7 @@
 package com.example.lab6_autorotatemanager.ai
 
+import com.example.lab6_autorotatemanager.helpers.SensorReader
+
 /**
  * ЛР №6: кільцевий буфер (Circular Buffer) для вікна вимірів акселерометра.
  *
@@ -105,7 +107,7 @@ class SensorWindowBuffer(
         /** 20 Гц = період 50 мс; беремо 45 мс із запасом на джитер подій. */
         const val MIN_PERIOD_NS = 45_000_000L
         /** Період опитування сенсора для registerListener, мкс (20 Гц). */
-        const val SAMPLING_PERIOD_US = 50_000
+        const val SAMPLING_PERIOD_US = SensorReader.PERIOD_20_HZ_US
         const val GRAVITY = 9.80665f
     }
 }

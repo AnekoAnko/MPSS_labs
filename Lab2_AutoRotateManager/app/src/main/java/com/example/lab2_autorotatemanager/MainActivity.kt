@@ -286,6 +286,14 @@ fun AutoRotateScreen(
         // Графічний індикатор
         OrientationIndicator(x = x, y = y, angle = angle)
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("Керувати поворотом екрана")
+            Switch(checked = autoRotate, onCheckedChange = onAutoRotateChange)
+        }
         // Індикатор кута нахилу (0..90°)
         Column(Modifier.fillMaxWidth()) {
             Text("Нахил від вертикалі: ${"%.0f".format(abs(angle))}°")
@@ -296,14 +304,6 @@ fun AutoRotateScreen(
         }
 
         // Перемикач автоповороту
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("Керувати поворотом екрана")
-            Switch(checked = autoRotate, onCheckedChange = onAutoRotateChange)
-        }
     }
 }
 

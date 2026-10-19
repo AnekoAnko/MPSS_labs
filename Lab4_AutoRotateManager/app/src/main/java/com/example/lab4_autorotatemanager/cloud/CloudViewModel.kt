@@ -4,12 +4,12 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.lab4_autorotatemanager.AppGraph
+import com.example.lab4_autorotatemanager.control.DecisionEngine
 import com.example.lab4_autorotatemanager.helpers.ConnectivityMonitor
 import com.example.lab4_autorotatemanager.helpers.SensorHub
-import com.example.lab4_autorotatemanager.repository.SensorData
+import com.example.lab4_autorotatemanager.repository.SensorReading
 import com.example.lab4_autorotatemanager.repository.SensorRepository
 import com.example.lab4_autorotatemanager.repository.SystemStateRepository
-import com.google.gson.Gson
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,11 +24,11 @@ import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.math.sqrt
 
 /**
  * ЛР №3: хмарна синхронізація. Отримує виміри з SensorHub, вирішує, коли їх відправляти
- * (SendPolicy), веде чергу Pending при відсутності мережі й передає дані в SensorRepository.
+ * (SendPolicy), і викликає repository.save(). Куди і як писати (хмара, черга Pending,
+ * Room) вирішує SensorRepository — ViewModel лише перетворює Result на State та Event.
  */
 class CloudViewModel(
     private val repository: SensorRepository = AppGraph.sensorRepository,
@@ -39,13 +39,11 @@ class CloudViewModel(
 ) : ViewModel() {
 
     private val policy = SendPolicy()
-    private val gson = Gson()
-    private val sendMutex = Mutex()                 // запити йдуть по одному
-    private val pending = ArrayDeque<SensorData>()  // записи зі статусом Pending
+    private val sendMutex = Mutex()                 // відправки йдуть по одному
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.US)
 
     @Volatile
-    private var latest: SensorData? = null
+    private var latest: SensorReading? = null
 
     private val _state = MutableStateFlow(
         CloudState(configured = repository.isCloudConfigured, online = monitor.isOnline.value, deviceId = deviceId)
@@ -56,7 +54,6 @@ class CloudViewModel(
     val events = _events.receiveAsFlow()
 
     init {
-        monitor.start()
         if (!repository.isCloudConfigured) {
             log("FIREBASE_DB_URL не задано — додайте його в local.properties")
             _state.update { it.copy(status = SyncStatus.ERROR, lastError = "Не задано FIREBASE_DB_URL") }
@@ -65,6 +62,11 @@ class CloudViewModel(
         // Дані акселерометра (після фільтра ЛР №1)
         viewModelScope.launch {
             hub.filtered.collect { s -> onSample(s.x, s.y, s.z, system.orientation.value) }
+        }
+
+        // Скільки записів чекає відправки — рахує репозиторій
+        viewModelScope.launch {
+            repository.pendingCount.collect { n -> _state.update { it.copy(pendingCount = n) } }
         }
 
         // Реакція на зміну стану мережі
@@ -79,6 +81,7 @@ class CloudViewModel(
                 }
                 if (!wasOnline && online) {
                     log("Мережа відновлена")
+                    if (_state.value.enabled) _state.update { it.copy(status = SyncStatus.IDLE) }
                     launch { sendMutex.withLock { flushPending(announce = true) } }
                 }
                 wasOnline = online
@@ -97,20 +100,20 @@ class CloudViewModel(
         }
     }
 
-    // ЄДИНИЙ вхід для дій користувача
+    // ЄДИНИЙ вхід у ViewModel — всі дії приходять сюди
     fun onAction(action: CloudAction) {
         when (action) {
+            CloudAction.Start -> monitor.start()   // Activity видно → стежимо за мережею
+            CloudAction.Stop -> monitor.stop()     // додаток згорнуто → знімаємо NetworkCallback
             is CloudAction.SetEnabled -> setEnabled(action.enabled)
             CloudAction.SendNow -> sendNow()
         }
     }
 
     private fun onSample(x: Float, y: Float, z: Float, orientation: String) {
-        val sample = SensorData(
-            deviceId = deviceId,
-            type = "ACCELEROMETER",
-            x = x.round2(), y = y.round2(), z = z.round2(),
-            value = sqrt(x * x + y * y + z * z).round2(),
+        val sample = SensorReading(
+            x = x, y = y, z = z,
+            tilt = DecisionEngine.tiltDegrees(x, y, z),
             orientation = orientation
         )
         latest = sample
@@ -132,80 +135,65 @@ class CloudViewModel(
 
     // ------------------------------------------------------------------ відправка
 
-    private fun enqueue(sample: SensorData, reason: String) {
+    private fun enqueue(sample: SensorReading, reason: String) {
         policy.markSent(sample, now())
         viewModelScope.launch { sendMutex.withLock { deliver(sample, reason) } }
     }
 
-    private suspend fun deliver(sample: SensorData, reason: String) {
-        _state.update { it.copy(lastPayloadJson = gson.toJson(sample)) }
-
-        if (!monitor.isOnline.value) {
-            addPending(sample)
-            _state.update { it.copy(status = SyncStatus.PENDING) }
-            log("Pending ($reason): немає мережі, у черзі ${pending.size}")
-            return
+    private suspend fun deliver(sample: SensorReading, reason: String) {
+        val online = monitor.isOnline.value
+        _state.update {
+            it.copy(
+                lastPayloadJson = repository.payloadJson(sample),
+                status = if (online) SyncStatus.SENDING else SyncStatus.PENDING
+            )
         }
-        if (pending.isNotEmpty() && !flushPending(announce = false)) {
-            addPending(sample)
-            return
-        }
+        // Спершу те, що накопичилось, — щоб записи йшли в хмару в порядку вимірів
+        if (online && _state.value.pendingCount > 0) flushPending(announce = false)
 
-        _state.update { it.copy(status = SyncStatus.SENDING) }
-        repository.upload(sample)
+        repository.save(sample)
             .onSuccess { key -> onUploaded(key, reason) }
-            .onFailure { e -> onUploadFailed(sample, e) }
+            .onFailure { e ->
+                if (!monitor.isOnline.value) {
+                    _state.update { it.copy(status = SyncStatus.PENDING) }
+                    log("Pending ($reason): немає мережі, запис чекає відправки")
+                } else {
+                    onUploadFailed(e)
+                }
+            }
     }
 
-    /** Відправляє накопичені записи. Повертає true, якщо черга спорожніла. */
-    private suspend fun flushPending(announce: Boolean): Boolean {
-        if (pending.isEmpty()) return true
-        var sent = 0
-        log("Відправка черги Pending: ${pending.size} записів")
-        while (pending.isNotEmpty()) {
-            if (!monitor.isOnline.value) break
-            val item = pending.first()
-            _state.update { it.copy(status = SyncStatus.SENDING) }
-            val result = repository.upload(item)
-            if (result.isSuccess) {
-                pending.removeFirst()
-                sent++
-                onUploaded(result.getOrNull() ?: "—", "з черги Pending")
-            } else {
-                onUploadFailed(null, result.exceptionOrNull())
-                break
+    /** Відправляє накопичені записи через репозиторій. */
+    private suspend fun flushPending(announce: Boolean) {
+        if (_state.value.pendingCount == 0) return
+        log("Відправка черги Pending: ${_state.value.pendingCount} записів")
+        val sent = repository.syncPending()
+        if (sent > 0) {
+            _state.update {
+                it.copy(status = SyncStatus.SUCCESS, sentCount = it.sentCount + sent, lastSuccessTime = timeFormat.format(Date()), lastError = null)
             }
+            log("✓ з черги Pending надіслано $sent записів")
+            if (announce) _events.send(CloudEvent.ShowMessage("Мережа відновлена: надіслано $sent записів з черги"))
         }
-        _state.update { it.copy(pendingCount = pending.size) }
-        if (announce && sent > 0) _events.send(CloudEvent.ShowMessage("Мережа відновлена: надіслано $sent записів з черги"))
-        return pending.isEmpty()
     }
 
     private fun onUploaded(key: String, reason: String) {
         _state.update {
             it.copy(
-                status = if (pending.isEmpty()) SyncStatus.SUCCESS else SyncStatus.PENDING,
+                status = SyncStatus.SUCCESS,   // скільки ще в черзі — окремо, у pendingCount
                 sentCount = it.sentCount + 1,
                 lastSuccessTime = timeFormat.format(Date()),
                 lastRecordKey = key,
-                lastError = null,
-                pendingCount = pending.size
+                lastError = null
             )
         }
         log("✓ 200 OK ($reason) → key $key")
     }
 
-    private fun onUploadFailed(sample: SensorData?, e: Throwable?) {
-        sample?.let { addPending(it) }
-        val message = e?.message ?: e?.javaClass?.simpleName ?: "невідома помилка"
-        _state.update { it.copy(status = SyncStatus.ERROR, lastError = message, pendingCount = pending.size) }
-        log("✗ Помилка: $message; у черзі ${pending.size}")
-    }
-
-    private fun addPending(sample: SensorData) {
-        if (pending.size >= MAX_PENDING) pending.removeFirst()   // найстаріший запис відкидаємо
-        pending.addLast(sample)
-        _state.update { it.copy(pendingCount = pending.size) }
+    private fun onUploadFailed(e: Throwable) {
+        val message = e.message ?: e.javaClass.simpleName
+        _state.update { it.copy(status = SyncStatus.ERROR, lastError = message) }
+        log("✗ Помилка: $message; запис чекає в черзі Pending")
     }
 
     private fun log(message: String) {
@@ -216,14 +204,11 @@ class CloudViewModel(
 
     private fun now() = System.currentTimeMillis()
 
-    private fun Float.round2(): Float = Math.round(this * 100f) / 100f
-
     override fun onCleared() {
         monitor.stop()
     }
 
     companion object {
         const val TAG = "CloudSync"
-        const val MAX_PENDING = 200
     }
 }

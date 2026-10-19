@@ -51,6 +51,10 @@ data class ControlState(
 
 // Action — дії користувача: автоматика і панель «Manual Control».
 sealed interface ControlAction {
+    /** onStart Activity: підписуємось на команди з хмари (Firebase). */
+    data object Start : ControlAction
+    /** onStop Activity (окрім повороту екрана): знімаємо слухача Firebase. */
+    data object Stop : ControlAction
     data class SetAutoEnabled(val enabled: Boolean) : ControlAction
     data class SetThreshold(val value: Float) : ControlAction
     data class SetFlashlight(val on: Boolean) : ControlAction

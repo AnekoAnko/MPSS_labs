@@ -5,57 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="86e1012d-5e29-4eaf-9c0e-302caaf18a4c" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/.idea/AndroidProjectSystem.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/.idea/codeStyles/Project.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/.idea/codeStyles/codeStyleConfig.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/.idea/compiler.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/.idea/deploymentTargetSelector.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/.idea/deviceManager.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/.idea/gradle.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/.idea/misc.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/.idea/runConfigurations.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/.idea/vcs.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/build.gradle.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/androidTest/java/com/example/lab1_autorotatemanager/ExampleInstrumentedTest.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/AndroidManifest.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/java/com/example/lab1_autorotatemanager/MainActivity.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/java/com/example/lab1_autorotatemanager/ui/theme/Color.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/java/com/example/lab1_autorotatemanager/ui/theme/Theme.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/java/com/example/lab1_autorotatemanager/ui/theme/Type.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/keepRules/rules.keep" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/drawable/ic_launcher_background.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/drawable/ic_launcher_foreground.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/mipmap-hdpi/ic_launcher.webp" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/mipmap-hdpi/ic_launcher_round.webp" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/mipmap-mdpi/ic_launcher.webp" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/mipmap-mdpi/ic_launcher_round.webp" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/mipmap-xhdpi/ic_launcher.webp" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/mipmap-xhdpi/ic_launcher_round.webp" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/mipmap-xxhdpi/ic_launcher.webp" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.webp" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/values/colors.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/values/strings.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/values/themes.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/xml/backup_rules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/main/res/xml/data_extraction_rules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/app/src/test/java/com/example/lab1_autorotatemanager/ExampleUnitTest.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/build.gradle.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/gradle.properties" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/gradle/gradle-daemon-jvm.properties" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/gradle/libs.versions.toml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/gradle/wrapper/gradle-wrapper.jar" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/gradle/wrapper/gradle-wrapper.properties" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/gradlew" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/gradlew.bat" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Lab1_AutoRotateManager/settings.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/lab2_autorotatemanager/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/lab2_autorotatemanager/MainActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../Lab3_AutoRotateManager/app/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/../Lab3_AutoRotateManager/app/build.gradle.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -65,8 +19,14 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[LocalEmulator::path=D:\VirtualDevices\.android\avd\Medium_Phone.avd]" />
+  <component name="ExternalProjectsData">
+    <projectState path="$PROJECT_DIR$">
+      <ProjectState />
+    </projectState>
+  </component>
   <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
   &quot;lastFilter&quot;: {
@@ -76,7 +36,7 @@
 }</component>
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/AnekoAnko/MS_labs&quot;,
+    &quot;url&quot;: &quot;https://github.com/AnekoAnko/MPSS_labs.git&quot;,
     &quot;accountId&quot;: &quot;c254352d-cd6c-4b41-848f-220459b01347&quot;
   }
 }</component>
@@ -90,17 +50,17 @@
   </component>
   <component name="PropertiesComponent">{
   &quot;keyToString&quot;: {
+    &quot;Android App.app.executor&quot;: &quot;Run&quot;,
     &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
-    &quot;android.gradle.sync.needed&quot;: &quot;true&quot;,
     &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
     &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
     &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/andre/AndroidStudioProjects/Lab2_AutoRotateManager&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/andre/AndroidStudioProjects/MPSS_labs/Lab2_AutoRotateManager&quot;,
     &quot;settings.editor.selected.configurable&quot;: &quot;AndroidSdkUpdater&quot;
   }
 }</component>

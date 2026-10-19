@@ -1,10 +1,12 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
 
-// ЛР №3: секрети читаємо з local.properties (файл не потрапляє в Git)
-val localProps = java.util.Properties().apply {
+// ЛР №3: секрети читаємо з local.propPerties (файл не потрапляє в Git)
+val localProps = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }

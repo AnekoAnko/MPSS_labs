@@ -5,7 +5,6 @@ import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.lab6_autorotatemanager.AppGraph
-import com.example.lab6_autorotatemanager.ai.SensorWindowBuffer
 import com.example.lab6_autorotatemanager.helpers.SensorHub
 import com.example.lab6_autorotatemanager.helpers.SensorReader
 import com.example.lab6_autorotatemanager.helpers.SensorSample
@@ -30,7 +29,7 @@ class MonitorViewModel(
     private val hub: SensorHub = AppGraph.sensorHub,
     private val system: SystemStateRepository = AppGraph.systemState,
     // ЛР №6: 20 Гц (період 50 000 мкс) — частота, на якій навчена модель (вікно 20 вимірів ≈ 1 с)
-    private val samplingPeriodUs: Int = SensorWindowBuffer.SAMPLING_PERIOD_US,
+    private val samplingPeriodUs: Int = SensorReader.PERIOD_20_HZ_US,
     private val clock: () -> Long = { SystemClock.elapsedRealtime() }
 ) : ViewModel() {
 

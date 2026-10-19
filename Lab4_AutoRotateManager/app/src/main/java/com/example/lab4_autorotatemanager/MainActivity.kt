@@ -19,8 +19,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.lab4_autorotatemanager.ble.BleScreen
 import com.example.lab4_autorotatemanager.ble.BleViewModel
+import com.example.lab4_autorotatemanager.cloud.CloudAction
 import com.example.lab4_autorotatemanager.cloud.CloudScreen
 import com.example.lab4_autorotatemanager.cloud.CloudViewModel
+import com.example.lab4_autorotatemanager.control.ControlAction
 import com.example.lab4_autorotatemanager.control.ControlScreen
 import com.example.lab4_autorotatemanager.control.ControlViewModel
 import com.example.lab4_autorotatemanager.monitor.MonitorAction
@@ -65,6 +67,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        cloudVm.onAction(CloudAction.Start)       // стежимо за мережею (черга Pending)
+        controlVm.onAction(ControlAction.Start)   // слухаємо команди з Firebase
+    }
+
     override fun onResume() {
         super.onResume()
         monitorVm.onAction(MonitorAction.Start)   // екран видно → слухаємо сенсор
@@ -73,6 +81,15 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         monitorVm.onAction(MonitorAction.Stop)    // екран сховано → відписуємось, економимо батарею
         super.onPause()
+    }
+
+    override fun onStop() {
+        // Під час повороту екрана Activity перестворюється — мережеві підписки не перепідключаємо
+        if (!isChangingConfigurations) {
+            cloudVm.onAction(CloudAction.Stop)
+            controlVm.onAction(ControlAction.Stop)
+        }
+        super.onStop()
     }
 
     private companion object {

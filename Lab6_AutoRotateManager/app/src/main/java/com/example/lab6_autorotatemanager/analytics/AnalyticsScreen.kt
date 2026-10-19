@@ -22,14 +22,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.state.Alignment
-import androidx.compose.state.Modifier
-import androidx.compose.state.graphics.Color
-import androidx.compose.state.platform.LocalContext
-import androidx.compose.state.text.font.FontFamily
-import androidx.compose.state.text.font.FontWeight
-import androidx.compose.state.unit.dp
-import androidx.compose.state.unit.sp
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /** ЛР №5: вкладка «Аналітика» — графік з Room, статистика за годину, історія спрацювань. */

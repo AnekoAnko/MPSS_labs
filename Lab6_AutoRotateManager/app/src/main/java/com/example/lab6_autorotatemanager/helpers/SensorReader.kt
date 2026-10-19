@@ -25,7 +25,7 @@ class SensorReader(context: Context) {
     /** Чи є акселерометр на пристрої. */
     val isAvailable: Boolean get() = sensor != null
 
-    fun readings(samplingPeriodUs: Int = SensorManager.SENSOR_DELAY_UI): Flow<SensorSample> = callbackFlow {
+    fun readings(samplingPeriodUs: Int = DELAY_UI): Flow<SensorSample> = callbackFlow {
         val listener = object : SensorEventListener {
             override fun onSensorChanged(e: SensorEvent) {
                 trySend(SensorSample(e.values[0], e.values[1], e.values[2], e.timestamp))
@@ -35,5 +35,16 @@ class SensorReader(context: Context) {
         }
         if (sensor != null) manager?.registerListener(listener, sensor, samplingPeriodUs)
         awaitClose { manager?.unregisterListener(listener) }   // викликається при cancel()
+    }
+
+    companion object {
+        /** Стандартна частота для інтерфейсу (≈ 15 Гц). */
+        const val DELAY_UI = SensorManager.SENSOR_DELAY_UI
+
+        /** 20 Гц (період 50 000 мкс) — частота, на якій навчена ML-модель ЛР №6. */
+        const val PERIOD_20_HZ_US = 50_000
+
+        /** Прискорення вільного падіння, м/с² (для шкал на екрані). */
+        const val GRAVITY = SensorManager.GRAVITY_EARTH
     }
 }

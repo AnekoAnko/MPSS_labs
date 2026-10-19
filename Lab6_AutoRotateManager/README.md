@@ -6,6 +6,19 @@
 
 Модель уже навчена й лежить в `app/src/main/assets`, тож **Teachable Machine та окреме навчання не потрібні**.
 
+## Дані: репозиторій (крок 2 методички)
+
+ViewModel не працює з Room, Retrofit чи Firebase напряму — вона викликає `repository.save(reading)` і отримує `Result`:
+
+```
+ViewModel ──► SensorRepository ─┬─► SensorDao (Room)   1. спершу локально, synced = false
+                                └─► CloudApi (Retrofit) 2. потім у хмару → markSynced(id)
+```
+
+- Якщо мережі немає, запис лишається в базі з `synced = false`. Коли мережа повертається, `CloudViewModel` викликає `repository.syncPending()`. Черга Pending переживає перезапуск додатку, а лічильник Pending на картці хмари — це `dao.observeUnsyncedCount()`.
+- Три моделі даних лежать у `repository/`: `SensorReading` для ViewModel і State, `SensorPayload` для JSON у хмарі (`CloudApi.kt`), `SensorRecord` — рядок таблиці Room. Між ними перетворюють `toPayload()`, `toRecord()` і `toReading()` (`SensorReading.kt`).
+- Мережеві підписки звільняються, коли додаток згорнуто: `MainActivity.onStart/onStop` → `CloudAction.Start/Stop` (NetworkCallback) і `ControlAction.Start/Stop` (слухач Firebase `control/`). Під час повороту екрана підписки лишаються активними. Сенсор, як і раніше, вмикається й вимикається в `onResume/onPause` (`MonitorAction.Start/Stop`).
+
 ## Що де лежить
 
 | Файл | Призначення |
@@ -95,6 +108,7 @@ python tools\emulator_motion.py walk        # або run / shake / impact / stil
 | `Connection refused` у скрипті | емулятор не запущено або інший порт (`adb devices` покаже `emulator-5556`) |
 | `KO: authentication required` | видаліть порожній `%USERPROFILE%\.emulator_console_auth_token` або перезапустіть емулятор |
 | Lint: «16 KB alignment» | див. вище: LiteRT 1.4.0 |
+| Після оновлення зникла стара історія на «Аналітиці» | схема Room змінилась (версія 2: колонки `x, y, z, synced`), а `fallbackToDestructiveMigration` перестворює базу. Так і має бути |
 
 ## Перенавчання моделі (необов'язково)
 

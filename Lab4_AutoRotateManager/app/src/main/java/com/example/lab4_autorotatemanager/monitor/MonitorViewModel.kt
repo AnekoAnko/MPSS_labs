@@ -1,7 +1,6 @@
 package com.example.lab4_autorotatemanager.monitor
 
 import android.content.pm.ActivityInfo
-import android.hardware.SensorManager
 import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -29,7 +28,7 @@ class MonitorViewModel(
     private val reader: SensorReader = SensorReader(AppGraph.app),
     private val hub: SensorHub = AppGraph.sensorHub,
     private val system: SystemStateRepository = AppGraph.systemState,
-    private val samplingPeriodUs: Int = SensorManager.SENSOR_DELAY_UI,
+    private val samplingPeriodUs: Int = SensorReader.DELAY_UI,
     private val clock: () -> Long = { SystemClock.elapsedRealtime() }
 ) : ViewModel() {
 

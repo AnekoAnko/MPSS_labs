@@ -57,6 +57,9 @@ class ControlViewModel(
     private var reportJob: Job? = null
     private var lastSource = ControlSource.SYSTEM
 
+    /** Чи підписані ми зараз на команди з хмари. */
+    private var remoteRunning = false
+
     /** ЛР №6: відкладене вимкнення тривоги ШІ. */
     private var aiReleaseJob: Job? = null
 
@@ -98,26 +101,15 @@ class ControlViewModel(
             system.aiActivity.drop(1).collect { activity -> onAiActivity(activity == ActivityClass.ANOMALY) }
         }
 
-        // Б. Дистанційне керування (Cloud-to-Device)
-        if (remote == null) {
-            log("FIREBASE_DB_URL не задано — дистанційне керування вимкнено")
-        } else {
-            remote.start(
-                onCommand = { command, raw -> viewModelScope.launch { applyRemote(command, raw) } },
-                onConnection = { connection, details ->
-                    viewModelScope.launch {
-                        val changed = connection != _state.value.remoteConnection
-                        _state.update { it.copy(remoteConnection = connection, remoteDetails = details) }
-                        if (changed) log("Хмара: ${connection.label}${details?.let { " ($it)" } ?: ""}")
-                    }
-                }
-            )
-        }
+        // Б. Дистанційне керування (Cloud-to-Device): підписка — за ControlAction.Start
+        if (remote == null) log("FIREBASE_DB_URL не задано — дистанційне керування вимкнено")
     }
 
     // ЄДИНИЙ вхід для дій користувача
     fun onAction(action: ControlAction) {
         when (action) {
+            ControlAction.Start -> startRemote()
+            ControlAction.Stop -> stopRemote()
             is ControlAction.SetAutoEnabled -> setAutoEnabled(action.enabled)
             is ControlAction.SetThreshold -> setThreshold(action.value, ControlSource.MANUAL)
             is ControlAction.SetFlashlight -> setFlashlight(action.on, ControlSource.MANUAL)
@@ -223,6 +215,31 @@ class ControlViewModel(
     }
 
     // ------------------------------------------------------------ Б. Дистанційне керування
+
+    /** Activity видно → слухаємо гілку control/ у Firebase. */
+    private fun startRemote() {
+        if (remote == null || remoteRunning) return
+        remoteRunning = true
+        remote.start(
+            onCommand = { command, raw -> viewModelScope.launch { applyRemote(command, raw) } },
+            onConnection = { connection, details ->
+                viewModelScope.launch {
+                    val changed = connection != _state.value.remoteConnection
+                    _state.update { it.copy(remoteConnection = connection, remoteDetails = details) }
+                    if (changed) log("Хмара: ${connection.label}${details?.let { " ($it)" } ?: ""}")
+                }
+            }
+        )
+    }
+
+    /** Додаток згорнуто → знімаємо слухача, щоб не тримати з'єднання у фоні. */
+    private fun stopRemote() {
+        if (remote == null || !remoteRunning) return
+        remoteRunning = false
+        remote.stop()
+        _state.update { it.copy(remoteConnection = RemoteConnection.DISCONNECTED, remoteDetails = "призупинено: додаток згорнуто") }
+        log("Хмара: слухача знято (додаток згорнуто)")
+    }
 
     private fun applyRemote(command: ControlCommand, raw: String) {
         val previous = lastRemote

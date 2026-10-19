@@ -26,8 +26,12 @@ data class CloudState(
     val recent: List<String> = emptyList()
 )
 
-// Action — дії користувача на картці.
+// Action — дії користувача на картці та події життєвого циклу Activity.
 sealed interface CloudAction {
+    /** onStart Activity: стежимо за мережею. */
+    data object Start : CloudAction
+    /** onStop Activity (окрім повороту екрана): знімаємо NetworkCallback. */
+    data object Stop : CloudAction
     data class SetEnabled(val enabled: Boolean) : CloudAction
     data object SendNow : CloudAction
 }

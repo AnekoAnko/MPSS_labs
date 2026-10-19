@@ -1,6 +1,6 @@
 package com.example.lab6_autorotatemanager.cloud
 
-import com.example.lab6_autorotatemanager.repository.SensorData
+import com.example.lab6_autorotatemanager.repository.SensorReading
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -15,11 +15,11 @@ class SendPolicy(
     val delta: Float = 2.0f,
     val minGapMs: Long = 1_000
 ) {
-    private var lastSent: SensorData? = null
+    private var lastSent: SensorReading? = null
     private var lastSentAt = 0L
 
     /** Чи змінилось значення на величину Δ відносно останнього відправленого. */
-    fun deltaExceeded(sample: SensorData, now: Long): Boolean {
+    fun deltaExceeded(sample: SensorReading, now: Long): Boolean {
         val prev = lastSent ?: return true
         if (now - lastSentAt < minGapMs) return false
         val change = max(abs(sample.x - prev.x), max(abs(sample.y - prev.y), abs(sample.z - prev.z)))
@@ -27,12 +27,12 @@ class SendPolicy(
     }
 
     /** Чи минув інтервал і чи є новий вимір після останньої відправки. */
-    fun intervalElapsed(sample: SensorData, now: Long): Boolean {
+    fun intervalElapsed(sample: SensorReading, now: Long): Boolean {
         val prev = lastSent ?: return true
         return now - lastSentAt >= intervalMs && sample.timestamp > prev.timestamp
     }
 
-    fun markSent(sample: SensorData, now: Long) {
+    fun markSent(sample: SensorReading, now: Long) {
         lastSent = sample
         lastSentAt = now
     }

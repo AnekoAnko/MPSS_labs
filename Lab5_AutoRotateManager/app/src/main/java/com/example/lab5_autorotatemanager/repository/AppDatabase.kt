@@ -12,7 +12,7 @@ import androidx.room.RoomDatabase
  */
 @Database(
     entities = [SensorRecord::class],
-    version = 1,
+    version = 2,   // v2: колонки x, y, z, synced (черга відправки в хмару)
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

@@ -27,7 +27,8 @@ object AppGraph {
     val sensorRepository: SensorRepository by lazy {
         SensorRepository(
             api = CloudModule.createApi(BuildConfig.FIREBASE_DB_URL),
-            authToken = BuildConfig.FIREBASE_AUTH.ifBlank { null }
+            authToken = BuildConfig.FIREBASE_AUTH.ifBlank { null },
+            deviceId = deviceId
         )
     }
 
