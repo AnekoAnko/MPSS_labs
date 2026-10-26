@@ -6,32 +6,31 @@ import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
 
 /**
- * Bluetooth Interface Layer — абстракція над BLE-з'єднанням.
- * UI та ViewModel працюють лише з цим інтерфейсом, тому Mock-реалізацію
- * можна замінити на справжню (BluetoothGatt) без змін в інших шарах.
+ * BLE connection abstraction. The mock can be replaced with a real BluetoothGatt implementation
+ * without touching the UI or ViewModel.
  */
 interface IBleConnector {
 
-    /** Поточний стан з'єднання (для індикатора Connected/Disconnected). */
+    /** Current connection state. */
     val connectionState: StateFlow<BleConnectionState>
 
-    /** Потік повідомлень Notify від пристрою. */
+    /** Notifications from the device. */
     val notifications: SharedFlow<BleNotification>
 
-    /** Підключення + пошук сервісів + увімкнення Notify. Повертає true при успіху. */
+    /** Connect, discover services and enable notifications. Returns true on success. */
     suspend fun connect(device: BleDevice): Boolean
 
-    /** Розрив з'єднання і звільнення ресурсів GATT. */
+    /** Disconnect and release GATT resources. */
     fun disconnect()
 
-    /** Запис рядка в характеристику (з фрагментацією за MTU). Повертає true, якщо доставлено. */
+    /** Writes a string to a characteristic (split by MTU). Returns true if delivered. */
     suspend fun sendData(data: String, characteristic: UUID = BleProfile.CHAR_COMMAND): Boolean
 
-    /** Читання значення характеристики (Read). */
+    /** Reads a characteristic value. */
     suspend fun readCharacteristic(characteristic: UUID): String?
 }
 
-/** Сканер BLE-пристроїв: холодний потік, сканування триває, доки його збирають. */
+/** BLE scanner: a cold Flow that scans while collected. */
 interface IBleScanner {
     fun scan(durationMs: Long): Flow<BleDevice>
 }

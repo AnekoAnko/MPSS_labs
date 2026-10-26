@@ -26,10 +26,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * ЛР №2: ViewModel вкладки «BLE-хаб». Працює з Bluetooth лише через помічники
- * (IBleScanner, IBleConnector — Mock-реалізація віртуального AR-Hub-46).
- * ЛР №7: критичний стан → команда ALARM:ON на хаб (Mock-IoT), реле хаба — з Dashboard і сценаріїв,
- * статус з'єднання → SystemStateRepository.ble (Dashboard).
+ * BLE hub tab. Talks to Bluetooth only through IBleScanner / IBleConnector (mock AR-Hub-46).
+ * Also sends ALARM:ON/OFF on critical state, drives the hub relay and publishes link status for the dashboard.
  */
 class BleViewModel(
     private val environment: BluetoothEnvironment,
@@ -49,14 +47,14 @@ class BleViewModel(
 
     private var scanJob: Job? = null
     private var connectJob: Job? = null
-    /** ЛР №7: остання команда, надіслана системою (для Dashboard). */
+    /** Last command sent by the system (shown on the dashboard). */
     private var lastCommand: String? = null
 
     init {
-        // Журнал обміну → State
+        // Log → state
         viewModelScope.launch { logger.entries.collect { log -> _state.update { it.copy(log = log) } } }
 
-        // Стан з'єднання з шару Bluetooth → State
+        // Connection state → state
         viewModelScope.launch {
             connector.connectionState.collect { cs ->
                 _state.update {
@@ -68,11 +66,11 @@ class BleViewModel(
                 }
             }
         }
-        // Notify від пристрою → останній статус
+        // Notify from the device → last status
         viewModelScope.launch {
             connector.notifications.collect { n -> _state.update { it.copy(lastStatus = n.value) } }
         }
-        // ЛР №7: стан BLE → Dashboard
+        // Link status → dashboard
         viewModelScope.launch {
             _state.collect { s ->
                 system.setBle(
@@ -86,7 +84,7 @@ class BleViewModel(
                 )
             }
         }
-        // ЛР №7: відповідь хаба про реле → Dashboard
+        // Hub relay reply → dashboard
         viewModelScope.launch {
             connector.notifications.collect { n ->
                 when {
@@ -95,18 +93,18 @@ class BleViewModel(
                 }
             }
         }
-        // ЛР №7: критичний стан системи → команда на Mock-IoT пристрій
+        // Critical state → hub alarm
         viewModelScope.launch {
             system.alarmActive.drop(1).collect { critical -> sendToHub(if (critical) "ALARM:ON" else "ALARM:OFF") }
         }
-        // ЛР №7: реле хаба з Dashboard і Smart-сценаріїв
+        // Hub relay requests from dashboard and scenarios
         viewModelScope.launch {
             system.requests.collect { r ->
                 if (r.type == ActuatorType.HUB_RELAY) sendToHub(if (r.on) "RELAY:ON" else "RELAY:OFF")
             }
         }
 
-        // ЛР №1 → ЛР №2: нова орієнтація пристрою → характеристика ORIENTATION на хабі
+        // Orientation change → ORIENTATION characteristic
         viewModelScope.launch {
             system.orientation.drop(1).collect { orientation ->
                 if (_state.value.connectionState.isLinkUp) {
@@ -116,7 +114,7 @@ class BleViewModel(
         }
     }
 
-    // ЄДИНИЙ вхід у ViewModel
+    // Single entry point for UI actions
     fun onAction(action: BleAction) {
         when (action) {
             BleAction.ScanClick -> _events.trySend(BleEvent.RequestPermissions(BluetoothEnvironment.REQUIRED_PERMISSIONS))
@@ -138,7 +136,7 @@ class BleViewModel(
             "BluetoothAdapter: ${if (adapter) "є" else "відсутній"}; " +
                 "дозволи: ${if (granted) "надано" else "не надано"}; режим: Mock (IBleConnector → MockBleConnector)"
         )
-        // Mock-шар не використовує радіомодуль, тому сканування імітуємо навіть без дозволів
+        // The mock layer has no radio, so scanning works without permissions
         startScan()
     }
 
@@ -161,7 +159,7 @@ class BleViewModel(
 
     private fun connect(device: BleDevice) {
         if (_state.value.connectionState != BleConnectionState.DISCONNECTED) return
-        scanJob?.cancel() // сканування під час підключення знижує стабільність з'єднання
+        scanJob?.cancel() // scanning while connecting hurts stability
         _state.update { it.copy(connectedDevice = device) }
         connectJob = viewModelScope.launch {
             if (connector.connect(device)) {
@@ -169,7 +167,7 @@ class BleViewModel(
                     _state.update { it.copy(lastStatus = status) }
                 }
                 connector.sendData("ORIENT:${system.orientation.value}", BleProfile.CHAR_ORIENTATION)
-                // ЛР №7: тривога почалася, поки хаб був відключений, — доставляємо її після підключення
+                // alarm started while disconnected: deliver it now
                 if (system.alarmActive.value) sendToHub("ALARM:ON")
             } else {
                 _state.update { it.copy(connectedDevice = null) }
@@ -189,7 +187,7 @@ class BleViewModel(
         viewModelScope.launch { connector.sendData(command, BleProfile.CHAR_COMMAND) }
     }
 
-    /** ЛР №7: команда на хаб від системи (не з поля вводу). Без з'єднання — лише запис у журнал. */
+    /** Sends a system command to the hub; without a link it is only logged. */
     private fun sendToHub(command: String) {
         if (!_state.value.connectionState.isLinkUp) {
             logger.log(LogType.WARN, "$command: хаб не підключено — команду пропущено (ALARM буде надіслано після підключення)")

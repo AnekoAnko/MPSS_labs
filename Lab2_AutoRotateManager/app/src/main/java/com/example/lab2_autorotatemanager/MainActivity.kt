@@ -59,9 +59,8 @@ import kotlin.math.atan2
 import kotlin.math.min
 
 /**
- * Можливі стани орієнтації пристрою.
- * screenOrientation — значення, яке передаємо в requestedOrientation
- * (null для FLAT: коли телефон лежить, орієнтацію не змінюємо).
+ * Device orientations. screenOrientation is the value for requestedOrientation
+ * (null for FLAT: orientation is left unchanged).
  */
 enum class DeviceOrientation(val label: String, val screenOrientation: Int?) {
     PORTRAIT("Портрет", ActivityInfo.SCREEN_ORIENTATION_PORTRAIT),
@@ -71,15 +70,15 @@ enum class DeviceOrientation(val label: String, val screenOrientation: Int?) {
     FLAT("Лежить горизонтально", null)
 }
 
-/** Порогові значення (Threshold) системи Auto-Rotate Manager. */
+/** Orientation thresholds. */
 object Thresholds {
-    /** Мінімальна проєкція g на вісь X або Y (м/с²), щоб зафіксувати орієнтацію (~45°). */
+    /** Minimum gravity projection on X or Y (m/s²) to switch orientation (~45°). */
     const val TILT = 7.0f
-    /** Якщо |Z| більше цього значення — телефон лежить на столі (нахил < ~30°). */
+    /** |Z| above this means the phone lies flat (tilt < ~30°). */
     const val FLAT = 8.5f
-    /** Скільки мс новий стан має утримуватися, перш ніж ми повернемо екран (гістерезис). */
+    /** How long a new orientation must hold before rotating (hysteresis). */
     const val HOLD_TIME_MS = 400L
-    /** Коефіцієнт низькочастотного фільтра (0..1): більше — плавніше, але повільніше. */
+    /** Low-pass filter coefficient (0..1): higher is smoother but slower. */
     const val ALPHA = 0.8f
 }
 
@@ -88,21 +87,21 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     private lateinit var sensorManager: SensorManager
     private var accelerometer: Sensor? = null
 
-    /** ViewModel BLE-шару: переживає зміну конфігурації, тримає StateFlow для UI. */
+    /** BLE ViewModel: survives configuration changes, exposes StateFlow to the UI. */
     private val bleViewModel: BleViewModel by viewModels()
 
-    // Стан, який читає Compose-інтерфейс (зміна значення → перемальовування UI)
+    // State read by Compose (changes trigger recomposition)
     private var accX by mutableFloatStateOf(0f)
     private var accY by mutableFloatStateOf(0f)
     private var accZ by mutableFloatStateOf(0f)
     private var currentOrientation by mutableStateOf(DeviceOrientation.PORTRAIT)
     private var autoRotateEnabled by mutableStateOf(false)
 
-    // Для гістерезису: кандидат на нову орієнтацію і час, з якого він тримається
+    // Hysteresis: candidate orientation and since when it holds
     private var pendingOrientation: DeviceOrientation? = null
     private var pendingSince = 0L
 
-    /** Runtime-дозволи Bluetooth (Android 12+, minSdk = 31). */
+    /** Bluetooth runtime permissions (Android 12+). */
     private val blePermissions = arrayOf(
         Manifest.permission.BLUETOOTH_SCAN,
         Manifest.permission.BLUETOOTH_CONNECT,
@@ -113,14 +112,14 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
             bleViewModel.onEnvironmentChecked(isBluetoothAdapterAvailable(), result.values.all { it })
-            // Mock-шар не використовує радіомодуль, тому сканування імітуємо навіть без дозволів
+            // The mock layer has no radio, so scanning works without permissions
             bleViewModel.startScan()
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Отримуємо системний сервіс сенсорів і акселерометр
+        // Sensor service and accelerometer
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
@@ -153,7 +152,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         }
     }
 
-    /** Перед скануванням перевіряємо дозволи; якщо їх немає — запитуємо. */
+    /** Checks permissions before scanning and requests them if missing. */
     private fun requestScan() {
         val missing = blePermissions.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isEmpty()) {
@@ -167,7 +166,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     private fun isBluetoothAdapterAvailable(): Boolean =
         (getSystemService(BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter != null
 
-    /** Реєструємо слухача, коли активність видима. */
+    /** Register the listener while visible. */
     override fun onResume() {
         super.onResume()
         accelerometer?.let {
@@ -175,17 +174,17 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         }
     }
 
-    /** Знімаємо слухача, щоб сенсор не працював у фоні й не витрачав батарею. */
+    /** Unregister so the sensor doesn't run in the background. */
     override fun onPause() {
         super.onPause()
         sensorManager.unregisterListener(this)
     }
 
-    /** Викликається щоразу, коли акселерометр надсилає нові значення. */
+    /** Called on every new accelerometer value. */
     override fun onSensorChanged(event: SensorEvent) {
         if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
 
-        // Низькочастотний фільтр: згладжуємо шум, залишаючи складову гравітації
+        // Low-pass filter: smooth noise, keep gravity
         val a = Thresholds.ALPHA
         accX = a * accX + (1 - a) * event.values[0]
         accY = a * accY + (1 - a) * event.values[1]
@@ -193,13 +192,13 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
         val candidate = classify(accX, accY, accZ)
 
-        // Проміжна зона (нахил ~45°) або той самий стан — нічого не змінюємо
+        // In-between zone or same state: no change
         if (candidate == null || candidate == currentOrientation) {
             pendingOrientation = null
             return
         }
 
-        // Гістерезис: новий стан має протриматися HOLD_TIME_MS
+        // New state must hold for HOLD_TIME_MS
         val now = SystemClock.elapsedRealtime()
         if (candidate != pendingOrientation) {
             pendingOrientation = candidate
@@ -208,17 +207,14 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             currentOrientation = candidate
             pendingOrientation = null
             applyOrientation(candidate)
-            // ЛР №2: передаємо новий стан на BLE-хаб (характеристика ORIENTATION)
+            // Send the new orientation to the BLE hub
             bleViewModel.onOrientationChanged(candidate.name)
         }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
-    /**
-     * Визначаємо орієнтацію за тим, на яку вісь «лягає» гравітація.
-     * Повертає null, якщо пристрій у проміжному положенні.
-     */
+    /** Orientation by the axis gravity points along; null in between. */
     private fun classify(x: Float, y: Float, z: Float): DeviceOrientation? = when {
         abs(z) > Thresholds.FLAT -> DeviceOrientation.FLAT
         abs(y) >= abs(x) -> when {
@@ -233,7 +229,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         }
     }
 
-    /** Повертаємо екран, якщо автоповорот увімкнено і стан не FLAT. */
+    /** Rotates the screen if auto-rotate is on and the state isn't FLAT. */
     private fun applyOrientation(orientation: DeviceOrientation) {
         if (!autoRotateEnabled) return
         orientation.screenOrientation?.let { requestedOrientation = it }
@@ -248,7 +244,7 @@ fun AutoRotateScreen(
     autoRotate: Boolean,
     onAutoRotateChange: (Boolean) -> Unit
 ) {
-    // Кут нахилу від вертикалі в площині екрана (0° — телефон рівно в портреті)
+    // Tilt in the screen plane (0° = upright portrait)
     val angle = Math.toDegrees(atan2(x.toDouble(), y.toDouble())).toFloat()
 
     Column(
@@ -265,7 +261,7 @@ fun AutoRotateScreen(
             Text("Акселерометр недоступний на цьому пристрої", color = MaterialTheme.colorScheme.error)
         }
 
-        // Значення X, Y, Z
+        // X, Y, Z values
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
                 Text("Акселерометр, м/с²", fontWeight = FontWeight.SemiBold)
@@ -280,10 +276,10 @@ fun AutoRotateScreen(
             }
         }
 
-        // Поточний стан
+        // Current state
         Text("Орієнтація: ${orientation.label}", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
 
-        // Графічний індикатор
+        // Graphic indicator
         OrientationIndicator(x = x, y = y, angle = angle)
 
         Row(
@@ -294,7 +290,7 @@ fun AutoRotateScreen(
             Text("Керувати поворотом екрана")
             Switch(checked = autoRotate, onCheckedChange = onAutoRotateChange)
         }
-        // Індикатор кута нахилу (0..90°)
+        // Tilt indicator (0..90°)
         Column(Modifier.fillMaxWidth()) {
             Text("Нахил від вертикалі: ${"%.0f".format(abs(angle))}°")
             LinearProgressIndicator(
@@ -303,14 +299,11 @@ fun AutoRotateScreen(
             )
         }
 
-        // Перемикач автоповороту
+        // Auto-rotate switch
     }
 }
 
-/**
- * Canvas-індикатор: стрілка показує, де «верх» у реальному світі,
- * а точка — напрямок гравітації в площині екрана.
- */
+/** Canvas indicator: the arrow shows real-world "up", the dot shows gravity in the screen plane. */
 @Composable
 fun OrientationIndicator(x: Float, y: Float, angle: Float) {
     val primary = MaterialTheme.colorScheme.primary
@@ -320,10 +313,10 @@ fun OrientationIndicator(x: Float, y: Float, angle: Float) {
     Canvas(modifier = Modifier.size(220.dp)) {
         val r = size.minDimension / 2 * 0.9f
 
-        // Зовнішнє коло
+        // Outer circle
         drawCircle(color = outline, radius = r, style = Stroke(width = 4f))
 
-        // Стрілка «верх», повернута на кут нахилу
+        // "Up" arrow rotated by the tilt
         rotate(degrees = angle) {
             val tip = Offset(center.x, center.y - r * 0.8f)
             drawLine(primary, center, tip, strokeWidth = 10f, cap = StrokeCap.Round)
@@ -331,7 +324,7 @@ fun OrientationIndicator(x: Float, y: Float, angle: Float) {
             drawLine(primary, tip, Offset(tip.x + 20f, tip.y + 28f), strokeWidth = 10f, cap = StrokeCap.Round)
         }
 
-        // Точка гравітації: проєкція вектора g на площину екрана
+        // Gravity dot: projection of g onto the screen plane
         val g = SensorManager.GRAVITY_EARTH
         val dot = Offset(
             center.x + (-x / g).coerceIn(-1f, 1f) * r,

@@ -25,14 +25,9 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * ЛР №7: Smart-сценарії «Якщо X > 10, тоді ввімкнути вібрацію».
- *
- *   SensorHub.raw (20 Гц) → MedianNoiseFilter (шумопоглинання) → ScenarioEngine (витримка, гістерезис)
- *     → ScenarioTransition → SystemStateRepository.request(ActuatorRequest)
- *       → ControlViewModel (прожектор, сирена, лампа, вібрація) / BleViewModel (реле хаба)
- *
- * Правила зберігаються в Room (ScenarioRepository) і переживають перезапуск додатка.
- * ViewModel не керує залізом сама — лише надсилає запит у спільну шину.
+ * Smart scenarios, e.g. "IF X > 10 THEN vibrate".
+ * raw samples → MedianNoiseFilter → ScenarioEngine → ActuatorRequest on the shared bus.
+ * Rules are stored in Room; this ViewModel never touches hardware itself.
  */
 class ScenarioViewModel(
     private val hub: SensorHub,
@@ -63,20 +58,20 @@ class ScenarioViewModel(
                 Log.e(TAG, "Не вдалося створити правила за замовчуванням", e)
             }
         }
-        // Правила з Room → State (Flow оновлюється після кожної зміни таблиці)
+        // Rules from Room → state
         viewModelScope.launch {
             repository.rules.collect { list ->
                 rules = list
                 publishRules()
             }
         }
-        // Сирі значення: шумопоглинання робимо самі, щоб його рівень можна було налаштувати
+        // Raw values; noise filtering is done here so its level is configurable
         viewModelScope.launch {
             hub.raw.collect { s -> onSample(s.x, s.y, s.z) }
         }
     }
 
-    // ЄДИНИЙ вхід для дій користувача
+    // Single entry point for UI actions
     fun onAction(action: ScenarioAction) {
         when (action) {
             is ScenarioAction.SetEnabled -> setEnabled(action.enabled)
@@ -94,7 +89,7 @@ class ScenarioViewModel(
 
     private fun onSample(rawX: Float, rawY: Float, rawZ: Float) {
         val (x, y, z) = filter.apply(rawX, rawY, rawZ)
-        // Значення на екрані оновлюємо ~5 разів/с — частіше людина не прочитає
+        // Update the UI ~5 times per second
         if (++sampleCount % UI_EVERY == 0) {
             _state.update {
                 it.copy(x = x, y = y, z = z, dynamic = Metric.DYNAMIC.of(x, y, z), tilt = Metric.TILT.of(x, y, z))

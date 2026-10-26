@@ -1,1 +1,41 @@
+# Reports
 Звіти/
+
+# Secrets and local configuration
+local.properties
+**/local.properties
+secrets.properties
+keystore.properties
+*.jks
+*.keystore
+*.p12
+*.pem
+google-services.json
+GoogleService-Info.plist
+service-account*.json
+.env
+*.env
+
+# Build output
+.gradle/
+build/
+.kotlin/
+.externalNativeBuild/
+.cxx/
+captures/
+*.apk
+*.aab
+
+# IDE and OS
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Temporary archives
+*.tgz

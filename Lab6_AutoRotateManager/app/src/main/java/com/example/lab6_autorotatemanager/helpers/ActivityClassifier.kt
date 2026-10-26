@@ -12,13 +12,13 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
 
-/** Помічник ML: ViewModel не знає, що всередині TensorFlow Lite (зручно для тестів). */
+/** ML abstraction so ViewModels don't depend on TensorFlow Lite (easy to fake in tests). */
 interface IActivityClassifier : AutoCloseable {
     val info: ModelInfo
     fun classify(sensorWindow: FloatArray): Prediction
 }
 
-/** Опис моделі для UI і звіту: вхідні/вихідні тензори. */
+/** Model description for the UI: input/output tensors. */
 data class ModelInfo(
     val fileName: String,
     val sizeBytes: Long,
@@ -33,21 +33,16 @@ data class ModelInfo(
 }
 
 /**
- * ЛР №6: ML-Wrapper — завантажує модель activity_classifier.tflite з assets у пам'ять
- * і виконує inference (прогноз) локально, без мережі (On-device AI / Edge AI).
- *
- *   Вхід:  тензор [1, 20, 3] float32 — вікно 20 вимірів (x, y, z), підготовлене SensorWindowBuffer
- *   Вихід: тензор [1, 4]     float32 — ймовірності класів STILL, WALKING, RUNNING, ANOMALY (softmax)
- *
- * Interpreter не потокобезпечний, тому classify() синхронізовано; викликати його слід
- * з фонового потоку (Dispatchers.Default), а не з головного.
+ * Loads activity_classifier.tflite from assets and runs inference on the device.
+ * Input [1, 20, 3] float32, output [1, 4] class probabilities.
+ * Interpreter isn't thread-safe, so classify() is synchronized; call it off the main thread.
  */
 class ActivityClassifier(context: Context) : IActivityClassifier {
 
     private val model: ByteBuffer = loadModelFile(context, MODEL_FILE)
     private var interpreter: Interpreter = Interpreter(model, Interpreter.Options().apply { setNumThreads(2) })
 
-    // Буфери створюються один раз і перевикористовуються (без алокацій на кожен прогноз)
+    // Buffers are allocated once and reused
     private val inputBuffer: ByteBuffer
     private val output: Array<FloatArray>
 
@@ -76,7 +71,7 @@ class ActivityClassifier(context: Context) : IActivityClassifier {
         Log.i(TAG, "Модель завантажено: ${info.fileName}, ${info.sizeBytes} Б, ${info.describe()}, класи ${info.labels}")
     }
 
-    /** Передає вікно в модель і повертає масив ймовірностей для кожного класу. */
+    /** Runs the model on one window and returns class probabilities. */
     @Synchronized
     override fun classify(sensorWindow: FloatArray): Prediction {
         inputBuffer.rewind()
@@ -98,9 +93,8 @@ class ActivityClassifier(context: Context) : IActivityClassifier {
         const val LABELS_FILE = "activity_labels.txt"
 
         /**
-         * Відображає файл моделі з assets у пам'ять (memory-mapped), без копіювання в heap.
-         * Працює, лише якщо .tflite не стиснуто в APK (див. androidResources.noCompress у build.gradle.kts);
-         * інакше — запасний варіант: читаємо байти в direct ByteBuffer.
+         * Memory-maps the model from assets (requires noCompress for .tflite);
+         * falls back to reading the bytes into a direct buffer.
          */
         fun loadModelFile(context: Context, fileName: String): ByteBuffer = try {
             context.assets.openFd(fileName).use { fd ->

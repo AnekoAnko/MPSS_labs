@@ -51,7 +51,7 @@ import com.example.lab3_autorotatemanager.ble.BleProfile
 import com.example.lab3_autorotatemanager.ble.BleViewModel
 import com.example.lab3_autorotatemanager.ble.LogType
 
-/** Екран керування BLE: пошук, список пристроїв, статус, команди, термінал. */
+/** BLE screen: scan, device list, status, commands, terminal. */
 @Composable
 fun BleScreen(viewModel: BleViewModel, onScanClick: () -> Unit) {
     val state by viewModel.uiState.collectAsState()
@@ -69,7 +69,7 @@ fun BleScreen(viewModel: BleViewModel, onScanClick: () -> Unit) {
 
         ConnectionIndicator(state.connectionState, state.connectedDevice?.name)
 
-        // Пошук пристроїв + ProgressBar
+        // Scan button + progress
         Row(verticalAlignment = Alignment.CenterVertically) {
             Button(
                 onClick = onScanClick,
@@ -86,7 +86,7 @@ fun BleScreen(viewModel: BleViewModel, onScanClick: () -> Unit) {
             Text("Сканування ефіру…", style = MaterialTheme.typography.bodySmall)
         }
 
-        // Список знайдених пристроїв
+        // Found devices
         Text("Знайдені пристрої: ${state.devices.size}", fontWeight = FontWeight.SemiBold)
         if (state.devices.isEmpty() && !state.isScanning) {
             Text("Натисніть «Пошук пристроїв»", style = MaterialTheme.typography.bodySmall)
@@ -101,7 +101,7 @@ fun BleScreen(viewModel: BleViewModel, onScanClick: () -> Unit) {
             )
         }
 
-        // Керування підключеним пристроєм
+        // Controls for the connected device
         if (state.connectionState.isLinkUp) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -141,7 +141,7 @@ fun BleScreen(viewModel: BleViewModel, onScanClick: () -> Unit) {
             Switch(checked = state.interference, onCheckedChange = viewModel::setInterference)
         }
 
-        // Термінал
+        // Terminal
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Термінал обміну", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             TextButton(onClick = viewModel::clearLog) { Text("Очистити") }

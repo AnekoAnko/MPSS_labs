@@ -6,13 +6,12 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 /**
- * ЛР №5: база даних Room (абстракція над SQLite).
- * Синглтон: на весь процес створюється одне з'єднання з файлом auto_rotate.db,
- * бо відкриття бази — дорога операція, а кілька екземплярів можуть конфліктувати.
+ * Room database (SQLite). Singleton: opening a database is expensive
+ * and multiple instances could conflict.
  */
 @Database(
     entities = [SensorRecord::class],
-    version = 2,   // v2: колонки x, y, z, synced (черга відправки в хмару)
+    version = 2,   // v2: x, y, z, synced columns (upload queue)
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -22,19 +21,19 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         const val DB_NAME = "auto_rotate.db"
 
-        /** @Volatile — зміна поля одразу видима всім потокам. */
+        /** Writes are immediately visible to all threads. */
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        /** Double-checked locking: створюємо базу лише один раз, навіть якщо виклики з різних потоків. */
+        /** Double-checked locking: created once even with concurrent calls. */
         fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
-                    context.applicationContext,   // не Activity — щоб не було витоку пам'яті
+                    context.applicationContext,   // application context avoids leaking an Activity
                     AppDatabase::class.java,
                     DB_NAME
                 )
-                    // Під час розробки схема змінюється; у навчальному проєкті простіше перестворити базу
+                    // Schema still changes during development; recreating the DB is simpler
                     .fallbackToDestructiveMigration(true)
                     .build()
                     .also { INSTANCE = it }

@@ -23,14 +23,8 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * ЛР №5: ViewModel вкладки «Аналітика».
- *
- *   SensorHub (ЛР №1) + SystemStateRepository (тривога ЛР №4)
- *     → AnalyticsViewModel (RecordPolicy)
- *       → SensorRepository (Dispatchers.IO) → SensorDao → Room → SQLite (auto_rotate.db)
- *
- * Запис іде «вниз» через repository.save() (спершу Room, потім хмара), а дані для графіка піднімаються «вгору»
- * як Flow: Room сам повідомляє про нові рядки, і ViewModel кладе їх у State.
+ * Analytics tab: decides which samples to store (RecordPolicy) and saves them via SensorRepository.
+ * Chart data comes back from Room as a Flow, so the chart updates after every insert.
  */
 class AnalyticsViewModel(
     private val repository: SensorRepository = AppGraph.sensorRepository,
@@ -42,7 +36,7 @@ class AnalyticsViewModel(
     private val policy = RecordPolicy()
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.US)
 
-    /** Стан тривоги на попередньому вимірі — щоб зловити саме момент спрацювання. */
+    /** Alarm state on the previous sample, used to detect the moment it turns on. */
     private var wasAlarm = false
     private var writesSinceCleanup = 0
 
@@ -53,7 +47,7 @@ class AnalyticsViewModel(
     val events = _events.receiveAsFlow()
 
     init {
-        // Дані з бази → State (Room оновлює Flow після кожної вставки)
+        // Room re-emits after every insert
         viewModelScope.launch { repository.latest(CHART_POINTS).collect { p -> _state.update { it.copy(points = p) } } }
         viewModelScope.launch {
             repository.triggered(HISTORY_SIZE).collect { list ->
@@ -62,15 +56,15 @@ class AnalyticsViewModel(
         }
         viewModelScope.launch {
             repository.count().collect { n ->
-                val stats = repository.statsSince(clock() - HOUR_MS)   // агрегати перераховуємо після кожної зміни таблиці
+                val stats = repository.statsSince(clock() - HOUR_MS)   // recompute aggregates after each table change
                 _state.update { it.copy(recordCount = n, hourStats = stats) }
             }
         }
         viewModelScope.launch { system.threshold.collect { t -> _state.update { it.copy(threshold = t) } } }
-        // ЛР №6: «Біг» за прогнозом моделі → прискорений запис
+        // running → fast recording
         viewModelScope.launch { system.aiActivity.collect { a -> setFastMode(a == ActivityClass.RUNNING) } }
 
-        // Виміри: кут нахилу з даних акселерометра після фільтра ЛР №1
+        // Tilt from filtered accelerometer data
         viewModelScope.launch {
             hub.filtered.collect { s ->
                 onSample(s.x, s.y, s.z, system.orientation.value, system.alarmActive.value)
@@ -78,7 +72,7 @@ class AnalyticsViewModel(
         }
     }
 
-    // ЄДИНИЙ вхід для дій користувача
+    // Single entry point for UI actions
     fun onAction(action: AnalyticsAction) {
         when (action) {
             is AnalyticsAction.SetRecording -> setRecording(action.enabled)
@@ -87,7 +81,7 @@ class AnalyticsViewModel(
     }
 
     private fun onSample(x: Float, y: Float, z: Float, orientation: String, alarmActive: Boolean) {
-        val triggered = alarmActive && !wasAlarm   // фронт 0 → 1: актуатори щойно ввімкнулися
+        val triggered = alarmActive && !wasAlarm   // rising edge: actuators just turned on
         wasAlarm = alarmActive
         if (!_state.value.recording) return
 
@@ -98,7 +92,7 @@ class AnalyticsViewModel(
 
         viewModelScope.launch {
             try {
-                // Репозиторій сам вирішує, куди писати: спершу Room, потім хмара (synced = true)
+                // Room first, then cloud
                 val cloud = repository.save(reading)
                 val where = if (cloud.isSuccess) "☁ у хмарі" else "лише локально · Pending"
                 val value = "%.1f".format(tilt)
@@ -110,7 +104,7 @@ class AnalyticsViewModel(
                         error = null
                     )
                 }
-                // Ротація: раз на CLEANUP_EVERY записів видаляємо дані, старші за RETENTION_MS
+                // Periodically delete records older than RETENTION_MS
                 if (++writesSinceCleanup >= CLEANUP_EVERY) {
                     writesSinceCleanup = 0
                     val removed = repository.deleteOlderThan(clock() - RETENTION_MS)
@@ -138,7 +132,7 @@ class AnalyticsViewModel(
 
     private fun setRecording(enabled: Boolean) {
         _state.update { it.copy(recording = enabled) }
-        if (enabled) policy.reset()   // перший вимір після паузи запишеться одразу
+        if (enabled) policy.reset()   // next sample is stored immediately
         Log.d(TAG, if (enabled) "Запис у БД увімкнено" else "Запис у БД призупинено")
     }
 
@@ -156,7 +150,7 @@ class AnalyticsViewModel(
 
     companion object {
         const val TAG = "SensorDB"
-        /** Обмеження кількості точок на графіку, щоб не перевантажувати рендеринг. */
+        /** Limit chart points to keep rendering cheap. */
         const val CHART_POINTS = 50
         const val HISTORY_SIZE = 10
         const val HOUR_MS = 60 * 60 * 1000L

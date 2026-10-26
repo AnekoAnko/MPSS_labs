@@ -6,10 +6,10 @@ import com.example.lab7_autorotatemanager.repository.Comparison
 import com.example.lab7_autorotatemanager.repository.Metric
 import com.example.lab7_autorotatemanager.repository.ScenarioRule
 
-/** Правило + чи воно зараз активне (умова виконується і дію ввімкнено). */
+/** Rule + whether it is active right now. */
 data class RuleItem(val rule: ScenarioRule, val active: Boolean)
 
-/** Форма «Нове правило». threshold — текст із поля вводу (перевіряється у ViewModel). */
+/** "New rule" form; threshold is raw text validated by the ViewModel. */
 data class RuleDraft(
     val metric: Metric = Metric.X,
     val comparison: Comparison = Comparison.GREATER,
@@ -18,14 +18,14 @@ data class RuleDraft(
     val holdMs: Long = ScenarioRule.DEFAULT_HOLD_MS
 )
 
-// State — усе, що видно на вкладці «Сценарії» (ЛР №7).
+// State: the Scenarios tab.
 data class ScenarioState(
     val enabled: Boolean = true,
     val noise: NoiseLevel = NoiseLevel.MEDIUM,
     val rules: List<RuleItem> = emptyList(),
     val draft: RuleDraft = RuleDraft(),
     val draftError: String? = null,
-    /** Поточні значення після шумопоглинання (те, що бачить двигун правил). */
+    /** Current values after noise filtering (what the rule engine sees). */
     val x: Float = 0f,
     val y: Float = 0f,
     val z: Float = 0f,
@@ -35,7 +35,7 @@ data class ScenarioState(
     val log: List<String> = emptyList()
 )
 
-// Action — дії користувача.
+// Action: user intents.
 sealed interface ScenarioAction {
     data class SetEnabled(val enabled: Boolean) : ScenarioAction
     data class SetNoise(val level: NoiseLevel) : ScenarioAction
@@ -49,7 +49,7 @@ sealed interface ScenarioAction {
     data object AddRule : ScenarioAction
 }
 
-// Event — разові повідомлення.
+// Event: one-off messages.
 sealed interface ScenarioEvent {
     data class ShowMessage(val text: String) : ScenarioEvent
 }

@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Повний стан екрана BLE, який UI отримує через StateFlow. */
+/** Full BLE screen state exposed via StateFlow. */
 data class BleUiState(
     val isScanning: Boolean = false,
     val devices: List<BleDevice> = emptyList(),
@@ -29,7 +29,7 @@ class BleViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(BleUiState())
     val uiState: StateFlow<BleUiState> = _uiState.asStateFlow()
 
-    /** Рядки «терміналу». */
+    /** Terminal lines. */
     val log: StateFlow<List<BleLogEntry>> = logger.entries
 
     private var scanJob: Job? = null
@@ -37,7 +37,7 @@ class BleViewModel : ViewModel() {
     private var lastOrientation: String? = null
 
     init {
-        // Стан з'єднання з шару Bluetooth → стан UI
+        // Connection state → UI state
         viewModelScope.launch {
             connector.connectionState.collect { state ->
                 _uiState.update {
@@ -49,7 +49,7 @@ class BleViewModel : ViewModel() {
                 }
             }
         }
-        // Notify від пристрою → останній статус
+        // Notify from the device → last status
         viewModelScope.launch {
             connector.notifications.collect { n -> _uiState.update { it.copy(lastStatus = n.value) } }
         }
@@ -86,7 +86,7 @@ class BleViewModel : ViewModel() {
 
     fun connect(device: BleDevice) {
         if (_uiState.value.connectionState != BleConnectionState.DISCONNECTED) return
-        stopScan() // сканування під час підключення знижує стабільність з'єднання
+        stopScan() // scanning while connecting hurts stability
         _uiState.update { it.copy(connectedDevice = device) }
         connectJob = viewModelScope.launch {
             if (connector.connect(device)) {
@@ -111,7 +111,7 @@ class BleViewModel : ViewModel() {
         viewModelScope.launch { connector.sendData(command, BleProfile.CHAR_COMMAND) }
     }
 
-    /** Викликається з MainActivity, коли Auto-Rotate Manager (ЛР №1) визначив новий стан. */
+    /** Called by MainActivity when a new orientation is detected. */
     fun onOrientationChanged(orientation: String) {
         lastOrientation = orientation
         if (_uiState.value.connectionState.isLinkUp) {

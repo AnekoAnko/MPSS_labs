@@ -13,16 +13,9 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 
 /**
- * Репозиторій — одне місце для даних. ViewModel не знає ні про Retrofit, ні про Firebase:
- * вона викликає suspend-функцію save() і отримує Result.
- *
- *   ViewModel ──► SensorRepository ──► CloudApi (Retrofit → Firebase REST)
- *
- * Крок 1 методички — тільки хмара. Якщо відправити не вдалося (немає мережі), запис лишається
- * в черзі Pending у пам'яті й відправляється syncPending(), коли мережа повернеться.
- * У ЛР №5 цю чергу замінить таблиця Room (synced = false) — ViewModel і екран при цьому не зміняться.
- *
- * Створюється один раз на весь додаток (AppGraph), тому всі екрани працюють з тими самими даними.
+ * Single source of data. ViewModels call save() and get a Result; they don't know about Retrofit.
+ * If upload fails (no network), the record stays in the in-memory pending queue
+ * and syncPending() sends it when the network is back.
  */
 class SensorRepository(
     private val api: CloudApi?,
@@ -33,23 +26,23 @@ class SensorRepository(
 
     private val gson = Gson()
 
-    /** Записи, які ще не дійшли до хмари (статус Pending). */
+    /** Records not yet uploaded (pending). */
     private val pending = ArrayDeque<SensorPayload>()
     private val _pendingCount = MutableStateFlow(0)
     val pendingCount: StateFlow<Int> = _pendingCount.asStateFlow()
 
-    /** Запити до хмари йдуть по одному — черга не відправиться двічі. */
+    /** Uploads run one at a time, so the queue is never sent twice. */
     private val uploadMutex = Mutex()
 
     val isCloudConfigured: Boolean get() = api != null
 
-    /** ЛР №3: зберегти вимір — відправити в хмару. Успіх — ключ запису у Firebase. */
+    /** Uploads a sample. Returns the Firebase key on success. */
     suspend fun save(reading: SensorReading): Result<String> = uploadMutex.withLock {
         val payload = reading.toPayload(deviceId)
         push(payload).onFailure { addPending(payload) }
     }
 
-    /** Відправити все, що не пішло, коли мережа повернулася. Повертає кількість відправлених записів. */
+    /** Uploads everything left in the queue. Returns the number of records sent. */
     suspend fun syncPending(): Int = uploadMutex.withLock {
         var sent = 0
         while (pending.isNotEmpty()) {
@@ -61,16 +54,14 @@ class SensorRepository(
         sent
     }
 
-    /** JSON, який піде в хмару (картка показує його як «останній payload»). */
+    /** JSON that will be sent to the cloud. */
     fun payloadJson(reading: SensorReading): String = gson.toJson(reading.toPayload(deviceId))
 
-    /** ЛР №4: записує фактичний стан актуаторів у status/{deviceId}. */
+    /** Writes the actual actuator state to status/{deviceId}. */
     suspend fun reportStatus(deviceId: String, report: ActuatorReport): Result<Unit> = call {
         val response = requireApi().putStatus(deviceId, report, authToken)
         if (!response.isSuccessful) throw httpError(response.code(), response.errorBody()?.string())
     }
-
-    // ------------------------------------------------------------
 
     private suspend fun push(payload: SensorPayload): Result<String> = call {
         val response = requireApi().push(payload.deviceId, payload, authToken)
@@ -79,12 +70,12 @@ class SensorRepository(
     }
 
     private fun addPending(payload: SensorPayload) {
-        if (pending.size >= MAX_PENDING) pending.removeFirst()   // найстаріший запис відкидаємо
+        if (pending.size >= MAX_PENDING) pending.removeFirst()   // drop the oldest record
         pending.addLast(payload)
         _pendingCount.value = pending.size
     }
 
-    /** Мережа — не в головному потоці; скасування корутини не вважаємо помилкою мережі. */
+    /** Runs network calls on IO; cancellation is not treated as a network error. */
     private suspend fun <T> call(block: suspend () -> T): Result<T> = withContext(io) {
         try {
             Result.success(block())

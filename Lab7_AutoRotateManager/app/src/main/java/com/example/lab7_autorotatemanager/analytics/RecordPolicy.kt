@@ -2,25 +2,19 @@ package com.example.lab7_autorotatemanager.analytics
 
 import kotlin.math.abs
 
-/** Причина, з якої вимір записано в базу. */
+/** Why a sample was stored. */
 enum class RecordReason(val label: String) {
     FIRST("перший вимір"),
     EVENT("спрацювання актуаторів"),
     CHANGE("суттєва зміна"),
     TIMER("таймер"),
-    FAST("біг · прискорений запис")      // ЛР №6
+    FAST("біг · прискорений запис")
 }
 
 /**
- * ЛР №5: політика запису в БД. Акселерометр видає ~15–60 вимірів за секунду;
- * якщо писати кожен, база швидко розростеться, а графік стане «шумом».
- * Тому запис робимо лише якщо:
- *  • це перший вимір;
- *  • спрацювала система безпеки (force = true) — подію не можна пропустити;
- *  • значення змінилося щонайменше на [minDelta] (суттєва зміна);
- *  • або від останнього запису минуло [heartbeatMs] (запис за таймером).
- * Додатково між записами має пройти не менше [minIntervalMs] (захист від «зливи» записів).
- * Клас не залежить від Android — його легко перевірити звичайним тестом.
+ * Decides which samples go to the database, so it doesn't fill up with noise. A sample is stored if:
+ * it is the first one, an alarm just fired (force), the value changed by ≥ [minDelta],
+ * or [heartbeatMs] has passed. Writes are at least [minIntervalMs] apart.
  */
 class RecordPolicy(
     val minDelta: Float = DEFAULT_MIN_DELTA,
@@ -30,14 +24,10 @@ class RecordPolicy(
     private var lastValue: Float? = null
     private var lastTime = 0L
 
-    /**
-     * ЛР №6: прискорений режим. Вмикається, коли ML-модель розпізнала «Біг»:
-     * рух швидкий, тому пишемо частіше — мінімальний інтервал [FAST_INTERVAL_MS]
-     * без перевірки minDelta (≈ 5 записів/с замість «раз на 5 с у спокої»).
-     */
+    /** Fast mode (running): store every [FAST_INTERVAL_MS] without the minDelta check. */
     var fastMode = false
 
-    /** Повертає причину запису або null, якщо вимір записувати не треба. */
+    /** Returns the reason to store the sample, or null to skip it. */
     fun check(value: Float, nowMs: Long, force: Boolean = false): RecordReason? {
         val previous = lastValue
         val reason = when {
@@ -62,9 +52,9 @@ class RecordPolicy(
     }
 
     companion object {
-        const val DEFAULT_MIN_DELTA = 3f          // градуси
-        const val DEFAULT_MIN_INTERVAL_MS = 250L  // не частіше 4 записів/с
-        const val DEFAULT_HEARTBEAT_MS = 5_000L   // у спокої — раз на 5 с
-        const val FAST_INTERVAL_MS = 200L         // ЛР №6: під час бігу — 5 записів/с
+        const val DEFAULT_MIN_DELTA = 3f          // degrees
+        const val DEFAULT_MIN_INTERVAL_MS = 250L  // at most 4 writes/s
+        const val DEFAULT_HEARTBEAT_MS = 5_000L   // once per 5 s when idle
+        const val FAST_INTERVAL_MS = 200L         // 5 writes/s while running
     }
 }

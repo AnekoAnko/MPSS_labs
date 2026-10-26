@@ -8,10 +8,7 @@ import com.example.lab5_autorotatemanager.repository.CloudModule
 import com.example.lab5_autorotatemanager.repository.SensorRepository
 import com.example.lab5_autorotatemanager.repository.SystemStateRepository
 
-/**
- * Один екземпляр репозиторіїв і спільних помічників на весь додаток.
- * Якби кожна ViewModel створювала свій репозиторій, дані на різних екранах «роз'їхалися» б.
- */
+/** Single instances of repositories and shared helpers for the whole app. */
 object AppGraph {
 
     lateinit var app: Application
@@ -21,10 +18,10 @@ object AppGraph {
         app = application
     }
 
-    /** Спільний потік даних акселерометра (його наповнює MonitorViewModel). */
+    /** Shared accelerometer stream (filled by MonitorViewModel). */
     val sensorHub: SensorHub by lazy { SensorHub() }
 
-    /** Хмара (ЛР №3–4) + локальна БД Room (ЛР №5). */
+    /** Cloud + local Room database. */
     val sensorRepository: SensorRepository by lazy {
         SensorRepository(
             api = CloudModule.createApi(BuildConfig.FIREBASE_DB_URL),
@@ -34,14 +31,14 @@ object AppGraph {
         )
     }
 
-    /** Спільний стан: орієнтація, поріг, тривога (його читає й аналітика ЛР №5). */
+    /** Shared state: orientation, threshold, alarm. */
     val systemState: SystemStateRepository by lazy { SystemStateRepository() }
 
-    /** "AR-" + 8 символів ANDROID_ID. */
+    /** "AR-" + 8 chars of ANDROID_ID. */
     val deviceId: String by lazy { deviceIdOf(app) }
 }
 
-/** Клас Application: створюється раніше за будь-яку Activity і ініціалізує AppGraph. */
+/** Application class: created before any Activity, initializes AppGraph. */
 class AutoRotateApp : Application() {
     override fun onCreate() {
         super.onCreate()

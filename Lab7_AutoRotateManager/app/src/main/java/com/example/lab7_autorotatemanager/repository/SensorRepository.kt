@@ -17,19 +17,9 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 
 /**
- * Репозиторій — одне місце для даних. ViewModel не знає ні про Retrofit, ні про Firebase, ні про Room:
- * вона викликає save() і отримує Result, а історію читає як Flow.
- *
- *   ViewModel ──► SensorRepository ─┬─► CloudApi  (Retrofit → Firebase REST, ЛР №3–4)
- *                                   └─► SensorDao (Room → SQLite auto_rotate.db, ЛР №5)
- *
- * Крок 2 методички: спершу пишемо в базу, потім відправляємо в хмару. Якщо мережі немає,
- * запис лишається в базі з synced = false і відправиться syncPending(), коли мережа повернеться
- * (навіть після перезапуску додатку). У порівнянні з ЛР №4 змінився лише репозиторій.
- *
- * Усі звернення до бази й мережі виконуються в Dispatchers.IO: Room забороняє запити
- * в головному потоці (IllegalStateException «Cannot access database on the main thread»).
- * Створюється один раз на весь додаток (AppContainer, Manual DI), тому всі екрани працюють з тими самими даними.
+ * Single source of data. ViewModels call save() and read history as Flow; they don't know about Retrofit or Room.
+ * save() writes to Room first, then uploads; without network the record stays with synced = false
+ * and syncPending() sends it later. All DB and network work runs on Dispatchers.IO.
  */
 class SensorRepository(
     private val api: CloudApi?,
@@ -41,35 +31,32 @@ class SensorRepository(
 
     private val gson = Gson()
 
-    /** Запити до хмари йдуть по одному — запис не відправиться двічі (save() і syncPending() одночасно). */
+    /** Uploads run one at a time, so a record is never sent twice. */
     private val uploadMutex = Mutex()
 
     val isCloudConfigured: Boolean get() = api != null
 
     private val _storageFull = MutableStateFlow(false)
-    /** ЛР №7: пам'ять пристрою заповнена — записи йдуть напряму в хмару, без локальної копії. */
+    /** Storage is full: records go straight to the cloud. */
     val storageFull: StateFlow<Boolean> = _storageFull.asStateFlow()
 
     /**
-     * Зберегти вимір: 1) локально в Room (synced = false); 2) у хмару; успіх → synced = true.
-     * Помилка бази — виняток (його обробляє ViewModel); помилка мережі — Result.failure,
-     * а запис чекає в базі. Успіх — ключ запису у Firebase.
+     * Saves a sample: 1) to Room (synced = false), 2) to the cloud, then marks it synced.
+     * DB errors throw; network errors return Result.failure and the record waits in the queue.
      */
     suspend fun save(reading: SensorReading): Result<String> = withContext(io) {
-        val id = insertOrNull(reading.toRecord())                  // 1. спершу локально
-            ?: return@withContext uploadMutex.withLock { push(reading.toPayload(deviceId)) }   // диск заповнений → лише хмара
+        val id = insertOrNull(reading.toRecord())                  // 1. local first
+            ?: return@withContext uploadMutex.withLock { push(reading.toPayload(deviceId)) }   // disk full → cloud only
         uploadMutex.withLock {
-            if (dao.isSynced(id) == true) return@withLock Result.success("—")   // уже відправив syncPending()
-            push(reading.toPayload(deviceId))                      // 2. потім у хмару
+            if (dao.isSynced(id) == true) return@withLock Result.success("—")   // already sent by syncPending()
+            push(reading.toPayload(deviceId))                      // 2. then upload
                 .onSuccess { dao.markSynced(id) }
         }
     }
 
     /**
-     * ЛР №7: що буде, якщо в пам'яті смартфона закінчилось місце для БД?
-     * Room кидає SQLiteFullException. Тоді: 1) видаляємо найстаріші записи, які вже є в хмарі,
-     * і пробуємо ще раз; 2) якщо звільнити нічого не вдалося — повертаємо null, і save()
-     * відправляє вимір лише в хмару. Додаток не падає, а Dashboard показує попередження.
+     * Handles SQLiteFullException: deletes the oldest already-uploaded records and retries.
+     * Returns null if nothing could be freed, so save() uploads without a local copy.
      */
     private suspend fun insertOrNull(record: SensorRecord): Long? {
         try {
@@ -90,12 +77,12 @@ class SensorRepository(
         return null
     }
 
-    /** Відправити все, що не пішло, коли мережа повернулася. Повертає кількість відправлених записів. */
+    /** Uploads everything left in the queue. Returns the number of records sent. */
     suspend fun syncPending(): Int = withContext(io) {
         uploadMutex.withLock {
             var sent = 0
             for (record in dao.unsynced(SYNC_BATCH)) {
-                if (push(record.toReading().toPayload(deviceId)).isFailure) break   // мережа знову зникла
+                if (push(record.toReading().toPayload(deviceId)).isFailure) break   // network lost again
                 dao.markSynced(record.id)
                 sent++
             }
@@ -103,30 +90,28 @@ class SensorRepository(
         }
     }
 
-    /** Скільки записів ще не відправлено в хмару (synced = false). */
+    /** Number of records not yet uploaded. */
     val pendingCount: Flow<Int> = dao.observeUnsyncedCount().flowOn(io)
 
-    /** JSON, який піде в хмару (картка ЛР №3 показує його як «останній payload»). */
+    /** JSON that will be sent to the cloud. */
     fun payloadJson(reading: SensorReading): String = gson.toJson(reading.toPayload(deviceId))
 
-    /** ЛР №4: записує фактичний стан актуаторів у status/{deviceId}. */
+    /** Writes the actual actuator state to status/{deviceId}. */
     suspend fun reportStatus(deviceId: String, report: ActuatorReport): Result<Unit> = call {
         val response = requireApi().putStatus(deviceId, report, authToken)
         if (!response.isSuccessful) throw httpError(response.code(), response.errorBody()?.string())
     }
 
-    // ------------------------------------------------------------ ЛР №5: історія з Room
-
-    /** Останні [limit] записів для графіка; Room сам оновлює Flow після кожної зміни таблиці. */
+    /** Last [limit] records for the chart; re-emits after every change. */
     fun latest(limit: Int): Flow<List<SensorRecord>> = dao.observeLatest(limit).flowOn(io)
 
-    /** ЛР №7: останні [limit] записів, найновіші зверху (Dashboard). */
+    /** Last [limit] records, newest first (dashboard). */
     fun recent(limit: Int): Flow<List<SensorRecord>> = dao.observeRecent(limit).flowOn(io)
 
-    /** Історія спрацювань системи безпеки. */
+    /** History of alarm triggers. */
     fun triggered(limit: Int): Flow<List<SensorRecord>> = dao.observeTriggered(limit).flowOn(io)
 
-    /** Кількість рядків у таблиці. */
+    /** Row count. */
     fun count(): Flow<Int> = dao.observeCount().flowOn(io)
 
     suspend fun statsSince(since: Long): PeriodStats = withContext(io) { dao.statsSince(since) }
@@ -135,15 +120,13 @@ class SensorRepository(
 
     suspend fun clear() = withContext(io) { dao.deleteAll() }
 
-    // ------------------------------------------------------------
-
     private suspend fun push(payload: SensorPayload): Result<String> = call {
         val response = requireApi().push(payload.deviceId, payload, authToken)
         if (!response.isSuccessful) throw httpError(response.code(), response.errorBody()?.string())
         response.body()?.name ?: "—"
     }
 
-    /** Мережа — не в головному потоці; скасування корутини не вважаємо помилкою мережі. */
+    /** Runs network calls on IO; cancellation is not treated as a network error. */
     private suspend fun <T> call(block: suspend () -> T): Result<T> = withContext(io) {
         try {
             Result.success(block())
@@ -161,9 +144,9 @@ class SensorRepository(
         IOException("HTTP $code ${body?.take(120).orEmpty()}".trim())
 
     companion object {
-        /** Скільки записів відправляти за один виклик syncPending(). */
+        /** Max records per syncPending() call. */
         const val SYNC_BATCH = 500
-        /** Скільки найстаріших синхронізованих записів видаляти, коли диск заповнений. */
+        /** How many oldest uploaded records to delete when storage is full. */
         const val EMERGENCY_DELETE = 1_000
         const val TAG = "SensorRepo"
     }

@@ -3,36 +3,31 @@ package com.example.lab7_autorotatemanager.repository
 import kotlin.math.sqrt
 
 /**
- * Модель, з якою працюють ViewModel і State: один вимір, який треба зберегти й відправити.
- *
- * Три моделі даних — і це нормально (див. методичку «Архітектура додатку: MVI»):
- *  • SensorReading — те, з чим працює ViewModel (цей файл);
- *  • SensorPayload — як дані виглядають у JSON для хмари (CloudApi.kt);
- *  • SensorRecord  — рядок таблиці Room (SensorRecord.kt, ЛР №5).
- * Перетворення між ними — короткі функції toPayload()/toRecord() поруч із моделями,
- * тому зміна формату JSON не ламає базу, і навпаки.
+ * One sample as used by ViewModels and state.
+ * SensorPayload (cloud JSON) and SensorRecord (Room row) are separate models;
+ * conversions live next to them, so changing one format doesn't break the others.
  */
 data class SensorReading(
-    /** Відфільтровані значення акселерометра, м/с². */
+    /** Filtered accelerometer values, m/s². */
     val x: Float,
     val y: Float,
     val z: Float,
-    /** Кут нахилу пристрою від вертикалі, градуси (DecisionEngine.tiltDegrees). */
+    /** Tilt from vertical, degrees. */
     val tilt: Float,
-    /** Стан Auto-Rotate Manager з ЛР №1 (PORTRAIT, FLAT, …). */
+    /** Device orientation (PORTRAIT, FLAT, …). */
     val orientation: String,
-    /** Чи спрацювала в цей момент система безпеки (актуатори ЛР №4). */
+    /** Whether the alarm fired at this moment. */
     val actionTriggered: Boolean = false,
-    /** ЛР №7: підтверджений стан з ML-моделі ЛР №6 (STILL, WALKING, RUNNING, ANOMALY). */
+    /** Confirmed ML state (STILL, WALKING, RUNNING, ANOMALY). */
     val activity: String = "STILL",
-    /** Час вимірювання, мс з 01.01.1970 (Unix epoch). */
+    /** Sample time, epoch ms. */
     val timestamp: Long = System.currentTimeMillis()
 ) {
-    /** Модуль вектора прискорення |a|, м/с². */
+    /** Magnitude |a|, m/s². */
     val magnitude: Float get() = sqrt(x * x + y * y + z * z)
 }
 
-/** SensorReading → JSON для хмари (Firebase Realtime Database). */
+/** SensorReading → cloud JSON. */
 fun SensorReading.toPayload(deviceId: String) = SensorPayload(
     deviceId = deviceId,
     type = SensorPayload.TYPE_ACCELEROMETER,
@@ -47,7 +42,7 @@ fun SensorReading.toPayload(deviceId: String) = SensorPayload(
     timestamp = timestamp
 )
 
-/** SensorReading → рядок таблиці Room. synced = false: у хмару запис ще не відправлено. */
+/** SensorReading → Room row (synced = false until uploaded). */
 fun SensorReading.toRecord() = SensorRecord(
     timestamp = timestamp,
     sensorValue = tilt.round1(),
@@ -60,7 +55,7 @@ fun SensorReading.toRecord() = SensorRecord(
     synced = false
 )
 
-/** Рядок Room → SensorReading (щоб відправити в хмару те, що не пішло одразу). */
+/** Room row → SensorReading (to upload pending records). */
 fun SensorRecord.toReading() = SensorReading(
     x = x,
     y = y,

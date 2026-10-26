@@ -11,12 +11,9 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 
 /**
- * Дистанційне керування через Firebase SDK: ValueEventListener на гілку control/.
- * SDK тримає постійне WebSocket-з'єднання, і сервер сам «штовхає» зміни в додаток
- * (подієве керування, без опитування).
- *
- * FirebaseApp ініціалізується вручну (FirebaseOptions), тому google-services.json
- * і плагін com.google.gms.google-services не потрібні.
+ * Cloud commands via the Firebase SDK (ValueEventListener on control/).
+ * The SDK keeps a connection open and pushes changes. FirebaseApp is configured
+ * manually, so google-services.json is not needed.
  */
 class FirebaseCommandSource(
     private val context: Context,
@@ -41,7 +38,7 @@ class FirebaseCommandSource(
             onConnection(RemoteConnection.CONNECTING, "SDK, ${path}/")
             val database = FirebaseDatabase.getInstance(obtainApp(), databaseUrl)
 
-            // 1) Основний слухач: викликається одразу з поточним значенням і далі — на кожну зміну
+            // Main listener: fires with the current value, then on every change
             val listener = object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     val value = snapshot.value
@@ -59,7 +56,7 @@ class FirebaseCommandSource(
             controlRef = ref
             controlListener = listener
 
-            // 2) Службовий вузол .info/connected: true, коли є з'єднання із сервером Firebase
+            // .info/connected is true while connected to Firebase
             val infoListener = object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     val connected = snapshot.getValue(Boolean::class.java) == true
@@ -76,7 +73,7 @@ class FirebaseCommandSource(
             connectedRef = info
             connectedListener = infoListener
         } catch (e: Exception) {
-            // Неправильний URL бази, порожній applicationId тощо
+            // e.g. wrong database URL or empty applicationId
             Log.e(TAG, "Firebase SDK не ініціалізовано: ${e.message}")
             onConnection(RemoteConnection.ERROR, e.message ?: e.javaClass.simpleName)
         }
@@ -89,7 +86,7 @@ class FirebaseCommandSource(
         connectedListener = null
     }
 
-    /** Окремий іменований екземпляр FirebaseApp з параметрами з local.properties. */
+    /** Named FirebaseApp instance configured from local.properties. */
     private fun obtainApp(): FirebaseApp =
         FirebaseApp.getApps(context).firstOrNull { it.name == APP_NAME }
             ?: FirebaseApp.initializeApp(

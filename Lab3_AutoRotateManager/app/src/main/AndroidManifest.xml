@@ -2,11 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- ЛР №3: доступ до мережі та перевірка її стану -->
+    <!-- Network access and connectivity checks -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Bluetooth для Android 11 (API 30) і нижче -->
+    <!-- Bluetooth for Android 11 (API 30) and below -->
     <uses-permission
         android:name="android.permission.BLUETOOTH"
         android:maxSdkVersion="30" />
@@ -14,15 +14,15 @@
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30" />
 
-    <!-- Bluetooth для Android 12 (API 31) і вище: runtime-дозволи -->
+    <!-- Bluetooth for Android 12 (API 31)+: runtime permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <!-- Без прапорця neverForLocation BLE-сканування вимагає дозволу на геолокацію -->
+    <!-- Without neverForLocation, BLE scanning needs location permission -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <!-- BLE бажаний, але не обов'язковий: додаток працює і з Mock-шаром (емулятор) -->
+    <!-- BLE is optional: the app also works with the mock layer (emulator) -->
     <uses-feature
         android:name="android.hardware.bluetooth_le"
         android:required="false" />

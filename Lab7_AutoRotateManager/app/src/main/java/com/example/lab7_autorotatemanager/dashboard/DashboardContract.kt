@@ -6,7 +6,7 @@ import com.example.lab7_autorotatemanager.repository.AiSnapshot
 import com.example.lab7_autorotatemanager.repository.BleLink
 import com.example.lab7_autorotatemanager.repository.CloudLink
 
-/** Один рядок «Останні 5 записів БД». */
+/** One row of the "last 5 records" list. */
 data class RecordItem(
     val time: String,
     val tilt: Float,
@@ -16,32 +16,32 @@ data class RecordItem(
     val synced: Boolean
 )
 
-// State — головний екран Dashboard (ЛР №7): зведення всіх модулів ЛР №1–6.
+// State: the dashboard, a summary of all modules.
 data class DashboardState(
-    /** Віджет поточного стану з ML-моделі (ЛР №6). */
+    /** Current ML state widget. */
     val ai: AiSnapshot = AiSnapshot(),
-    /** Критичний стан: тривога ЛР №4 (нахил) або «Аномалія» ЛР №6. */
+    /** Critical state: tilt alarm or anomaly. */
     val critical: Boolean = false,
     val orientation: String = "PORTRAIT",
-    /** Останні 5 записів Room (ЛР №5). */
+    /** Last 5 Room records. */
     val records: List<RecordItem> = emptyList(),
     val recordCount: Int = 0,
-    /** Пам'ять пристрою заповнена: записи йдуть лише в хмару. */
+    /** Storage is full: records go to the cloud only. */
     val storageFull: Boolean = false,
-    /** Статус хмари (ЛР №3) і Bluetooth-мока (ЛР №2). */
+    /** Cloud and BLE status. */
     val cloud: CloudLink = CloudLink(),
     val ble: BleLink = BleLink(),
-    /** Стан актуаторів (ЛР №4) для кнопок швидкого керування. */
+    /** Actuator state for the quick controls. */
     val actuators: ActuatorSnapshot = ActuatorSnapshot()
 )
 
-// Action — кнопки швидкого керування.
+// Action: quick controls.
 sealed interface DashboardAction {
     data class Toggle(val type: ActuatorType, val on: Boolean) : DashboardAction
     data object AllOff : DashboardAction
 }
 
-// Event — разові повідомлення.
+// Event: one-off messages.
 sealed interface DashboardEvent {
     data class ShowMessage(val text: String) : DashboardEvent
 }

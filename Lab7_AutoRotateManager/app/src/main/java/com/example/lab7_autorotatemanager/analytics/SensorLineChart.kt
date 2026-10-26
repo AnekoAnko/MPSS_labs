@@ -20,13 +20,8 @@ import java.util.Locale
 private val ALARM_COLOR = android.graphics.Color.rgb(198, 40, 40)
 
 /**
- * ЛР №5: лінійний графік (MPAndroidChart LineChart) у Compose через AndroidView.
- * Вісь X — час запису (HH:mm:ss), вісь Y — значення сенсора (кут нахилу, 0..180°).
- * Червоні точки — записи з actionTriggered = true (спрацювання системи безпеки),
- * пунктир — поточний поріг DecisionEngine.
- *
- * factory викликається один раз (створення View), update — після кожної зміни
- * списку points, тобто після кожного нового рядка в таблиці.
+ * Line chart (MPAndroidChart) inside Compose via AndroidView.
+ * X: record time, Y: tilt angle 0..180°. Red dots mark alarm triggers, the dashed line is the threshold.
  */
 @Composable
 fun SensorLineChart(
@@ -44,7 +39,7 @@ fun SensorLineChart(
     )
 }
 
-/** Одноразове налаштування вигляду графіка. */
+/** One-time chart styling. */
 private fun setupChart(chart: LineChart, textColor: Int) {
     chart.description.isEnabled = false
     chart.legend.isEnabled = false
@@ -66,9 +61,9 @@ private fun setupChart(chart: LineChart, textColor: Int) {
     chart.xAxis.textColor = textColor
 }
 
-/** Перебудова даних графіка з актуального списку записів. */
+/** Rebuilds chart data from the current records. */
 private fun renderChart(chart: LineChart, points: List<SensorRecord>, threshold: Float, lineColor: Int) {
-    // Поріг DecisionEngine — горизонтальна пунктирна лінія
+    // Threshold as a dashed horizontal line
     chart.axisLeft.removeAllLimitLines()
     chart.axisLeft.addLimitLine(LimitLine(threshold, "Поріг ${threshold.toInt()}°").apply {
         setLineColor(ALARM_COLOR)
@@ -79,12 +74,11 @@ private fun renderChart(chart: LineChart, points: List<SensorRecord>, threshold:
     })
 
     if (points.isEmpty()) {
-        chart.clear()   // показує setNoDataText
+        chart.clear()   // shows setNoDataText
         return
     }
 
-    // Float не вміщує мілісекунди epoch (≈1,8·10¹²) без втрати точності,
-    // тому по X відкладаємо секунди від першої точки, а підпис рахуємо назад у час.
+    // Float can't hold epoch ms precisely, so X is seconds since the first point
     val base = points.first().timestamp
     val entries = points.map { Entry((it.timestamp - base) / 1000f, it.sensorValue) }
 
@@ -111,5 +105,5 @@ private fun renderChart(chart: LineChart, points: List<SensorRecord>, threshold:
 
     chart.setData(LineData(dataSet))
     chart.notifyDataSetChanged()
-    chart.invalidate()   // перемалювати без анімації — «живий» графік
+    chart.invalidate()   // redraw without animation
 }

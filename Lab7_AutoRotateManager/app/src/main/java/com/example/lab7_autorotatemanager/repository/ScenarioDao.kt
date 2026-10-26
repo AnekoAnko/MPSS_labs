@@ -6,11 +6,11 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
-/** ЛР №7: операції з таблицею Smart-сценаріїв. */
+/** Queries for the scenario_rules table. */
 @Dao
 interface ScenarioDao {
 
-    /** «Живий» список правил: Room повторює запит після кожної зміни таблиці. */
+    /** Live list of rules: Room re-runs the query after every change. */
     @Query("SELECT * FROM scenario_rules ORDER BY id ASC")
     fun observeAll(): Flow<List<ScenarioRecord>>
 

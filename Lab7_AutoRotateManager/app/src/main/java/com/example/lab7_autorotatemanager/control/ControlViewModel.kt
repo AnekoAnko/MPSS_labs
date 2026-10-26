@@ -31,14 +31,9 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * ЛР №4: ViewModel керування виконавчими пристроями. Три джерела команд:
- *  1) AUTO   — DecisionEngine за даними акселерометра (SensorHub, ЛР №1);
- *  2) MANUAL — Action з панелі «Manual Control»;
- *  3) REMOTE — команди з Firebase (помічник RemoteCommandSource, гілка control/);
- *  4) AI     — прогноз TFLite-моделі «Аномалія» (ЛР №6, через SystemStateRepository);
- *  5) DASHBOARD / SCENARIO — запити ActuatorRequest зі спільної шини (ЛР №7).
- * Діє правило «остання команда перемагає»; джерело останньої зміни показується в UI.
- * Залізо — лише через помічник IActuator, хмара — лише через SensorRepository.
+ * Controls the actuators. Command sources: AUTO (DecisionEngine), MANUAL (UI), REMOTE (Firebase),
+ * AI (anomaly), DASHBOARD / SCENARIO (request bus). The last command wins.
+ * Hardware goes through IActuator, the cloud through SensorRepository.
  */
 class ControlViewModel(
     private val actuator: IActuator,
@@ -53,15 +48,15 @@ class ControlViewModel(
     private val engine = DecisionEngine()
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.US)
 
-    /** Попередня команда з хмари — застосовуємо лише поля, що змінилися. */
+    /** Previous cloud command: only changed fields are applied. */
     private var lastRemote: ControlCommand? = null
     private var reportJob: Job? = null
     private var lastSource = ControlSource.SYSTEM
 
-    /** Чи підписані ми зараз на команди з хмари. */
+    /** Whether we are subscribed to cloud commands. */
     private var remoteRunning = false
 
-    /** ЛР №6: відкладене вимкнення тривоги ШІ. */
+    /** Delayed release of the AI alarm. */
     private var aiReleaseJob: Job? = null
 
     private val _state = MutableStateFlow(
@@ -84,7 +79,7 @@ class ControlViewModel(
         if (!actuator.hasFlash) log("FEATURE_CAMERA_FLASH відсутній → прожектор у режимі імітації")
         if (!actuator.hasVibrator) log("Вібромотор відсутній → сирена лише звукова")
 
-        // Ліхтарик вимкнули/увімкнули із шторки — синхронізуємо State (зворотний зв'язок від системи)
+        // Torch toggled outside the app: sync the state
         actuator.onTorchChanged = { enabled ->
             if (enabled != _state.value.flashlight.on) {
                 _state.update { it.copy(flashlight = it.flashlight.copy(on = enabled, source = ControlSource.SYSTEM, changedAt = now())) }
@@ -93,26 +88,26 @@ class ControlViewModel(
             }
         }
 
-        // ЛР №7: запити з Dashboard і Smart-сценаріїв (реле хаба виконує BleViewModel)
+        // Requests from dashboard and scenarios (hub relay is handled by BleViewModel)
         viewModelScope.launch {
             system.requests.collect { request -> onRequest(request) }
         }
 
-        // А. Локальне автоматичне керування: дані акселерометра після фільтра ЛР №1
+        // Automatic control from filtered accelerometer data
         viewModelScope.launch {
             hub.filtered.collect { s -> onSensorSample(s.x, s.y, s.z) }
         }
 
-        // ЛР №6: підтверджений прогноз моделі
+        // Confirmed model prediction
         viewModelScope.launch {
             system.aiActivity.drop(1).collect { activity -> onAiActivity(activity == ActivityClass.ANOMALY) }
         }
 
-        // Б. Дистанційне керування (Cloud-to-Device): підписка — за ControlAction.Start
+        // Cloud commands: subscription starts on ControlAction.Start
         if (remote == null) log("FIREBASE_DB_URL не задано — дистанційне керування вимкнено")
     }
 
-    // ЄДИНИЙ вхід для дій користувача
+    // Single entry point for UI actions
     fun onAction(action: ControlAction) {
         when (action) {
             ControlAction.Start -> startRemote()
@@ -129,8 +124,6 @@ class ControlViewModel(
             }
         }
     }
-
-    // ------------------------------------------------------------ А. Локальне автоматичне керування
 
     private fun onSensorSample(x: Float, y: Float, z: Float) {
         if (!_state.value.autoEnabled) {
@@ -156,8 +149,6 @@ class ControlViewModel(
         publishAlarm()
     }
 
-    // ------------------------------------------------------------ ЛР №7: Dashboard і Smart-сценарії
-
     private fun onRequest(r: ActuatorRequest) {
         val source = if (r.source == RequestSource.SCENARIO) ControlSource.SCENARIO else ControlSource.DASHBOARD
         when (r.type) {
@@ -168,22 +159,19 @@ class ControlViewModel(
                 actuator.vibratePulse()
                 log("Вібро-імпульс · ${source.label}${if (r.reason.isNotBlank()) " · ${r.reason}" else ""}")
             }
-            ActuatorType.HUB_RELAY -> Unit   // реле віртуального хаба — у BleViewModel
+            ActuatorType.HUB_RELAY -> Unit   // handled by BleViewModel
         }
     }
 
-    /** Фактичний стан актуаторів → Dashboard. */
+    /** Publishes the actual actuator state for the dashboard. */
     private fun publishActuators() {
         val s = _state.value
         system.updateActuators { it.copy(flashlight = s.flashlight.on, siren = s.siren.on, lamp = s.lamp.on) }
     }
 
-    // ------------------------------------------------------------ ЛР №6: реакція на прогноз ML-моделі
-
     /**
-     * ANOMALY → вмикаємо сирену і прожектор (джерело AI);
-     * інший клас → вимикаємо їх, але не раніше ніж через [AI_ALARM_HOLD_MS]
-     * (короткий удар не повинен дати «пік» сирени тривалістю 1 с).
+     * ANOMALY turns on siren and floodlight (source AI). Other classes turn them off,
+     * but not earlier than [AI_ALARM_HOLD_MS], so a short hit doesn't cause a 1 s siren blip.
      */
     private fun onAiActivity(isAnomaly: Boolean) {
         if (isAnomaly) {
@@ -207,7 +195,7 @@ class ControlViewModel(
         if (!_state.value.aiAlarm) return
         _state.update { it.copy(aiAlarm = false) }
         log("ШІ: аномалію знято")
-        // вимикаємо лише те, що ввімкнула саме модель (ручні/хмарні команди не чіпаємо)
+        // only turn off what the model turned on
         if (_state.value.siren.source == ControlSource.AI) setSiren(false, ControlSource.AI)
         if (_state.value.flashlight.source == ControlSource.AI) setFlashlight(false, ControlSource.AI)
         publishAlarm()
@@ -223,7 +211,7 @@ class ControlViewModel(
         if (!enabled && engine.alarmActive) {
             engine.reset()
             _state.update { it.copy(alarmActive = false) }
-            // вимикаємо лише те, що ввімкнула автоматика
+            // only turn off what automation turned on
             if (_state.value.siren.source == ControlSource.AUTO) setSiren(false, ControlSource.AUTO)
             if (_state.value.flashlight.source == ControlSource.AUTO) setFlashlight(false, ControlSource.AUTO)
         }
@@ -238,18 +226,16 @@ class ControlViewModel(
         scheduleReport()
     }
 
-    /** Спільний стан тривоги для інших екранів. */
+    /** Publishes the combined alarm state for other screens. */
     private fun publishAlarm() {
-        val critical = _state.value.let { it.alarmActive || it.aiAlarm }   // ЛР №6: + тривога ШІ
+        val critical = _state.value.let { it.alarmActive || it.aiAlarm }   // tilt alarm or AI alarm
         if (critical != system.alarmActive.value) {
-            system.setAlarmActive(critical)   // → BLE-хаб (ALARM:ON/OFF), Room (подія), Dashboard
-            scheduleReport()                  // ЛР №7: звіт про критичний стан → status/{deviceId}
+            system.setAlarmActive(critical)   // → BLE hub, Room event, dashboard
+            scheduleReport()                  // report critical state to status/{deviceId}
         }
     }
 
-    // ------------------------------------------------------------ Б. Дистанційне керування
-
-    /** Activity видно → слухаємо гілку control/ у Firebase. */
+    /** App visible: listen to control/ in Firebase. */
     private fun startRemote() {
         if (remote == null || remoteRunning) return
         remoteRunning = true
@@ -265,7 +251,7 @@ class ControlViewModel(
         )
     }
 
-    /** Додаток згорнуто → знімаємо слухача, щоб не тримати з'єднання у фоні. */
+    /** App hidden: stop listening so no connection stays open in the background. */
     private fun stopRemote() {
         if (remote == null || !remoteRunning) return
         remoteRunning = false
@@ -280,7 +266,7 @@ class ControlViewModel(
         _state.update { it.copy(lastCommandRaw = raw, lastCommandTime = now()) }
         log("Команда з хмари: $raw")
 
-        // Застосовуємо лише ті поля, які з'явилися або змінилися (edge-triggered)
+        // Apply only fields that appeared or changed (edge-triggered)
         command.ledStatus?.takeIf { previous == null || it != previous.ledStatus }
             ?.let { setLamp(it, ControlSource.REMOTE) }
         command.flashlight?.takeIf { previous == null || it != previous.flashlight }
@@ -291,11 +277,9 @@ class ControlViewModel(
             ?.let { setThreshold(it, ControlSource.REMOTE) }
     }
 
-    // ------------------------------------------------------------ Виконання команд
-
     private fun setFlashlight(on: Boolean, source: ControlSource) {
         if (_state.value.flashlight.on == on) return
-        // Спершу оновлюємо стан, щоб TorchCallback не сприйняв нашу ж команду як зовнішню
+        // Update state first so TorchCallback doesn't treat our own command as external
         _state.update { it.copy(flashlight = ActuatorStatus(on, source, now(), it.flashlight.hardware)) }
         val hardware = actuator.toggleFlashlight(on)
         _state.update { it.copy(flashlight = it.flashlight.copy(hardware = hardware)) }
@@ -325,7 +309,7 @@ class ControlViewModel(
         scheduleReport()
     }
 
-    /** Зворотний зв'язок: стан актуаторів → status/{deviceId}; кілька змін поспіль — один запит. */
+    /** Reports actuator state to status/{deviceId}; several changes in a row become one request. */
     private fun scheduleReport() {
         if (!repository.isCloudConfigured) return
         reportJob?.cancel()

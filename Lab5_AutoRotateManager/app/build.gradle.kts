@@ -3,11 +3,11 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    // ЛР №5: KSP генерує реалізацію DAO/бази Room на етапі компіляції
+    // KSP generates Room DAO/database code at compile time
     alias(libs.plugins.ksp)
 }
 
-// ЛР №3: секрети читаємо з local.properties (файл не потрапляє в Git)
+// Secrets come from local.properties (not committed to Git)
 val localProps = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
@@ -30,7 +30,7 @@ android {
 
         buildConfigField("String", "FIREBASE_DB_URL", "\"${localProps.getProperty("FIREBASE_DB_URL", "")}\"")
         buildConfigField("String", "FIREBASE_AUTH", "\"${localProps.getProperty("FIREBASE_AUTH", "")}\"")
-        // ЛР №4: параметри Firebase SDK (якщо порожні — використовується REST Streaming)
+        // Firebase SDK options (if empty, REST streaming is used)
         buildConfigField("String", "FIREBASE_APP_ID", "\"${localProps.getProperty("FIREBASE_APP_ID", "")}\"")
         buildConfigField("String", "FIREBASE_API_KEY", "\"${localProps.getProperty("FIREBASE_API_KEY", "")}\"")
     }
@@ -61,23 +61,23 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    // MVI: collectAsStateWithLifecycle() — збирає State лише поки екран видимий
+    // collectAsStateWithLifecycle()
     implementation(libs.androidx.lifecycle.runtime.compose)
 
-    // ЛР №3: REST-клієнт, JSON, логування HTTP
+    // REST client, JSON, HTTP logging
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
-    // ЛР №4: Firebase Realtime Database SDK (ValueEventListener)
+    // Firebase Realtime Database SDK
     implementation("com.google.firebase:firebase-database:22.0.2")
 
-    // ЛР №5: локальна БД Room (SQLite) + генератор коду через KSP
+    // Room (SQLite) + KSP code generation
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    // ЛР №5: графіки (LineChart) — через JitPack, див. settings.gradle.kts
+    // Charts (MPAndroidChart via JitPack)
     implementation(libs.mpandroidchart)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

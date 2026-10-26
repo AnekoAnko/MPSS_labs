@@ -7,10 +7,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
-/**
- * ЛР №7: репозиторій Smart-сценаріїв. Правила зберігаються в Room, тому переживають
- * перезапуск додатка. ViewModel працює лише з ScenarioRule, про ScenarioRecord не знає.
- */
+/** Stores smart rules in Room so they survive restarts. ViewModels see only ScenarioRule. */
 class ScenarioRepository(
     private val dao: ScenarioDao,
     private val io: CoroutineDispatcher = Dispatchers.IO
@@ -20,7 +17,7 @@ class ScenarioRepository(
         .map { list -> list.mapNotNull { it.toRule() } }
         .flowOn(io)
 
-    /** Перший запуск: таблиця порожня → додаємо приклади правил. */
+    /** First launch: insert example rules into the empty table. */
     suspend fun ensureDefaults() = withContext(io) {
         if (dao.count() == 0) ScenarioRule.DEFAULTS.forEach { dao.upsert(it.toRecord()) }
     }

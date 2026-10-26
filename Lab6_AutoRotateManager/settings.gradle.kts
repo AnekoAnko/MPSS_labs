@@ -19,7 +19,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // ЛР №5: MPAndroidChart публікується через JitPack
+        // MPAndroidChart is published via JitPack
         maven { url = uri("https://jitpack.io") }
     }
 }

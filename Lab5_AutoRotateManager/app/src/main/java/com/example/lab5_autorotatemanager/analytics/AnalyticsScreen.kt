@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-/** ЛР №5: вкладка «Аналітика» — графік з Room, статистика за годину, історія спрацювань. */
+/** Analytics tab: chart from Room, hourly stats, trigger history. */
 @Composable
 fun AnalyticsScreen(vm: AnalyticsViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -49,7 +49,7 @@ fun AnalyticsScreen(vm: AnalyticsViewModel) {
     AnalyticsContent(state = state, onAction = vm::onAction)
 }
 
-// Чиста функція: State на вході, Action на виході.
+// Stateless content: state in, actions out.
 @Composable
 fun AnalyticsContent(state: AnalyticsState, onAction: (AnalyticsAction) -> Unit) {
     Column(
@@ -59,7 +59,6 @@ fun AnalyticsContent(state: AnalyticsState, onAction: (AnalyticsAction) -> Unit)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // ------------------------------------------------------------ Стан запису
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -82,7 +81,6 @@ fun AnalyticsContent(state: AnalyticsState, onAction: (AnalyticsAction) -> Unit)
             }
         }
 
-        // ------------------------------------------------------------ Графік
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp)) {
                 Text("Нахил від вертикалі, ° (останні ${AnalyticsViewModel.CHART_POINTS} точок)", fontWeight = FontWeight.Bold)
@@ -103,7 +101,6 @@ fun AnalyticsContent(state: AnalyticsState, onAction: (AnalyticsAction) -> Unit)
             }
         }
 
-        // ------------------------------------------------------------ Статистика за годину
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("За останню годину (SQL: MIN/MAX/AVG)", fontWeight = FontWeight.Bold)
@@ -120,7 +117,6 @@ fun AnalyticsContent(state: AnalyticsState, onAction: (AnalyticsAction) -> Unit)
             }
         }
 
-        // ------------------------------------------------------------ Історія спрацювань
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Історія спрацювань системи безпеки", fontWeight = FontWeight.Bold)

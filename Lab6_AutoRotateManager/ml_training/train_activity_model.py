@@ -1,11 +1,11 @@
 """
-ЛР №6: навчання 1D-CNN класифікатора активності і експорт у TensorFlow Lite.
+Trains the 1D-CNN activity classifier and exports it to TensorFlow Lite.
 
-Запуск (потрібен Python 3.9–3.12 і TensorFlow 2.17, бо в Android використовується
-рантайм org.tensorflow:tensorflow-lite:2.17.0):
+Run (requires Python 3.9–3.12 and TensorFlow 2.17 to match
+org.tensorflow:tensorflow-lite:2.17.0 on Android):
     pip install "tensorflow-cpu==2.17.1" numpy
     python train_activity_model.py
-Результат:
+Output:
     activity_classifier.tflite  → app/src/main/assets/
     activity_labels.txt         → app/src/main/assets/
 """
@@ -15,7 +15,7 @@ import tensorflow as tf
 
 from motion_patterns import LABELS, WINDOW, generate, preprocess, random_gravity_dir
 
-SEED = 21                       # номер варіанта — для відтворюваності
+SEED = 21                       # fixed seed for reproducibility
 PER_CLASS_TRAIN = 6000
 PER_CLASS_TEST = 1000
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -26,8 +26,8 @@ def make_set(per_class, rng):
     for ci, label in enumerate(LABELS):
         for _ in range(per_class):
             w = generate(label, WINDOW, rng)
-            # 25 % вікон звичайних класів — «перехідні»: початок вікна належить іншій активності
-            # (Спокій→Ходьба→Біг). Без цього модель плутає зміну темпу з аномалією.
+            # 25 % of normal windows are transitions (start belongs to another activity),
+            # so a change of pace isn't mistaken for an anomaly.
             if label != "ANOMALY" and rng.random() < 0.25:
                 other = rng.choice([l for l in LABELS[:3] if l != label])
                 k = int(rng.integers(1, WINDOW // 2))
@@ -59,12 +59,12 @@ def main():
     x_train, y_train = make_set(PER_CLASS_TRAIN, rng)
     x_test, y_test = make_set(PER_CLASS_TEST, rng)
 
-    # Для навчання batch довільний; для експорту — фіксований batch=1 (тензор [1, 20, 3])
+    # Free batch size for training; fixed batch=1 for export ([1, 20, 3])
     train_model = build_model()
     train_in = tf.keras.Input(shape=(WINDOW, 3))
     trainable = tf.keras.Model(train_in, train_model(train_in))
     trainable.compile(optimizer=tf.keras.optimizers.Adam(2e-3),
-                      # label smoothing: модель не «впевнена на 100 %», ймовірності інформативніші
+                      # label smoothing keeps probabilities below 100 %
                       loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
                       metrics=["accuracy"])
     y_train_1h = tf.keras.utils.to_categorical(y_train, len(LABELS))
@@ -76,12 +76,12 @@ def main():
 
     pred = trainable.predict(x_test, verbose=0).argmax(1)
     cm = tf.math.confusion_matrix(y_test, pred, num_classes=len(LABELS)).numpy()
-    print("Confusion matrix (рядки — істина, стовпці — прогноз):", LABELS)
+    print("Confusion matrix (rows = truth, columns = prediction):", LABELS)
     print(cm)
     np.savetxt(os.path.join(OUT_DIR, "confusion_matrix.csv"), cm, fmt="%d", delimiter=",")
 
     converter = tf.lite.TFLiteConverter.from_keras_model(train_model)
-    tflite = converter.convert()          # float32, без квантизації: простіше пояснити тензори
+    tflite = converter.convert()          # float32, no quantization
     with open(os.path.join(OUT_DIR, "activity_classifier.tflite"), "wb") as f:
         f.write(tflite)
     with open(os.path.join(OUT_DIR, "activity_labels.txt"), "w", encoding="utf-8") as f:

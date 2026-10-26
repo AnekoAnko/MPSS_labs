@@ -5,10 +5,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
-/**
- * Низькочастотний фільтр (ЛР №1): згладжує шум, залишаючи складову гравітації.
- *   x = α·x + (1 − α)·ax
- */
+/** Low-pass filter: smooths noise and keeps the gravity component. x = α·x + (1 − α)·ax */
 class LowPassFilter(private val alpha: Float = ALPHA) {
     private var x = 0f
     private var y = 0f
@@ -22,17 +19,14 @@ class LowPassFilter(private val alpha: Float = ALPHA) {
     }
 
     companion object {
-        /** Коефіцієнт фільтра (0..1): більше — плавніше, але повільніше. */
+        /** Filter coefficient (0..1): higher is smoother but slower. */
         const val ALPHA = 0.8f
     }
 }
 
 /**
- * Спільна «труба» з даними акселерометра для всіх екранів.
- * Один сенсор — багато споживачів: монітор (ЛР №1), хмара (ЛР №3), керування (ЛР №4)…
- * Дані в неї кладе MonitorViewModel, поки екран видимий (MonitorAction.Start/Stop),
- * а інші ViewModel лише підписуються на [raw] або [filtered].
- * Створюється один раз на весь додаток (AppGraph).
+ * Shared stream of accelerometer data for all screens.
+ * MonitorViewModel publishes while the screen is visible; others subscribe to [raw] or [filtered].
  */
 class SensorHub {
 
@@ -41,16 +35,16 @@ class SensorHub {
     private val _raw = MutableSharedFlow<SensorSample>(
         extraBufferCapacity = BUFFER, onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    /** Сирі значення event.values. */
+    /** Raw event.values. */
     val raw: SharedFlow<SensorSample> = _raw.asSharedFlow()
 
     private val _filtered = MutableSharedFlow<SensorSample>(
         extraBufferCapacity = BUFFER, onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    /** Значення після низькочастотного фільтра. */
+    /** Low-pass filtered values. */
     val filtered: SharedFlow<SensorSample> = _filtered.asSharedFlow()
 
-    /** Приймає сирий вимір, повертає відфільтрований і розсилає обидва підписникам. */
+    /** Takes a raw sample, emits raw and filtered values, returns the filtered one. */
     fun publish(sample: SensorSample): SensorSample {
         val smooth = filter.apply(sample)
         _raw.tryEmit(sample)

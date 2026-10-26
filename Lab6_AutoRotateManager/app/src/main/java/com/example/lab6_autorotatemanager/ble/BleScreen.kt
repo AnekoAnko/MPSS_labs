@@ -49,12 +49,12 @@ import com.example.lab6_autorotatemanager.helpers.ble.BleLogEntry
 import com.example.lab6_autorotatemanager.helpers.ble.BleProfile
 import com.example.lab6_autorotatemanager.helpers.ble.LogType
 
-/** Вкладка «BLE-хаб»: малює State, надсилає Action, виконує Event (запит дозволів). */
+/** BLE hub tab: renders state, sends actions, handles events (permission request). */
 @Composable
 fun BleScreen(vm: BleViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
 
-    // Системний діалог дозволів; результат повертається у ViewModel як Action
+    // System permission dialog; the result goes back to the ViewModel as an action
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result -> vm.onAction(BleAction.PermissionsResult(result.values.all { it })) }
@@ -70,7 +70,7 @@ fun BleScreen(vm: BleViewModel) {
     BleContent(state = state, onAction = vm::onAction)
 }
 
-/** Пошук, список пристроїв, статус, команди, термінал. */
+/** Scan, device list, status, commands, terminal. */
 @Composable
 fun BleContent(state: BleState, onAction: (BleAction) -> Unit) {
     Column(
@@ -84,7 +84,7 @@ fun BleContent(state: BleState, onAction: (BleAction) -> Unit) {
 
         ConnectionIndicator(state.connectionState, state.connectedDevice?.name)
 
-        // Пошук пристроїв + ProgressBar
+        // Scan button + progress
         Row(verticalAlignment = Alignment.CenterVertically) {
             Button(
                 onClick = { onAction(BleAction.ScanClick) },
@@ -101,7 +101,7 @@ fun BleContent(state: BleState, onAction: (BleAction) -> Unit) {
             Text("Сканування ефіру…", style = MaterialTheme.typography.bodySmall)
         }
 
-        // Список знайдених пристроїв
+        // Found devices
         Text("Знайдені пристрої: ${state.devices.size}", fontWeight = FontWeight.SemiBold)
         if (state.devices.isEmpty() && !state.isScanning) {
             Text("Натисніть «Пошук пристроїв»", style = MaterialTheme.typography.bodySmall)
@@ -116,7 +116,7 @@ fun BleContent(state: BleState, onAction: (BleAction) -> Unit) {
             )
         }
 
-        // Керування підключеним пристроєм
+        // Controls for the connected device
         if (state.connectionState.isLinkUp) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -153,7 +153,7 @@ fun BleContent(state: BleState, onAction: (BleAction) -> Unit) {
             Switch(checked = state.interference, onCheckedChange = { onAction(BleAction.SetInterference(it)) })
         }
 
-        // Термінал
+        // Terminal
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Термінал обміну", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             TextButton(onClick = { onAction(BleAction.ClearLog) }) { Text("Очистити") }

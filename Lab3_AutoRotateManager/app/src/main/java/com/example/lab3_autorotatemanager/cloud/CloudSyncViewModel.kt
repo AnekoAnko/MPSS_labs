@@ -23,7 +23,7 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.sqrt
 
-/** Статус хмарної синхронізації (колір індикатора визначається в UI). */
+/** Cloud sync status (indicator color is chosen in the UI). */
 enum class SyncStatus(val label: String) {
     DISABLED("Вимкнено"),
     IDLE("Очікування даних"),
@@ -49,8 +49,8 @@ data class CloudUiState(
 )
 
 /**
- * ViewModel хмарної синхронізації: отримує виміри від Activity, вирішує, коли їх відправляти
- * (SendPolicy), веде чергу Pending при відсутності мережі й передає дані в Repository.
+ * Cloud sync: receives samples from the Activity, decides when to send them (SendPolicy),
+ * keeps a pending queue while offline and passes data to the repository.
  */
 class CloudSyncViewModel @JvmOverloads constructor(
     app: Application,
@@ -64,8 +64,8 @@ class CloudSyncViewModel @JvmOverloads constructor(
 
     private val policy = SendPolicy()
     private val gson = Gson()
-    private val sendMutex = Mutex()                 // запити йдуть по одному
-    private val pending = ArrayDeque<SensorData>()  // записи зі статусом Pending
+    private val sendMutex = Mutex()                 // one request at a time
+    private val pending = ArrayDeque<SensorData>()  // pending records
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.US)
 
     @Volatile
@@ -76,7 +76,7 @@ class CloudSyncViewModel @JvmOverloads constructor(
     )
     val uiState: StateFlow<CloudUiState> = _uiState.asStateFlow()
 
-    /** Одноразові повідомлення для Toast. */
+    /** One-off messages for Toast. */
     private val _events = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val events: SharedFlow<String> = _events.asSharedFlow()
 
@@ -87,7 +87,7 @@ class CloudSyncViewModel @JvmOverloads constructor(
             _uiState.update { it.copy(status = SyncStatus.ERROR, lastError = "Не задано FIREBASE_DB_URL") }
         }
 
-        // Реакція на зміну стану мережі
+        // React to network changes
         viewModelScope.launch {
             var wasOnline = monitor.isOnline.value
             monitor.isOnline.collect { online ->
@@ -105,7 +105,7 @@ class CloudSyncViewModel @JvmOverloads constructor(
             }
         }
 
-        // Періодична відправка: кожні 5 с, якщо є нові дані
+        // Periodic send every 5 s if there is new data
         viewModelScope.launch {
             while (isActive) {
                 delay(500)
@@ -117,7 +117,7 @@ class CloudSyncViewModel @JvmOverloads constructor(
         }
     }
 
-    /** Виклик з Activity на кожну подію акселерометра (після фільтра ЛР №1). */
+    /** Called for every filtered accelerometer sample. */
     fun onSample(x: Float, y: Float, z: Float, orientation: String) {
         val sample = SensorData(
             deviceId = deviceId,
@@ -144,8 +144,6 @@ class CloudSyncViewModel @JvmOverloads constructor(
             ?: _events.tryEmit("Ще немає даних з акселерометра")
     }
 
-    // ------------------------------------------------------------------ відправка
-
     private fun enqueue(sample: SensorData, reason: String) {
         policy.markSent(sample, now())
         viewModelScope.launch { sendMutex.withLock { deliver(sample, reason) } }
@@ -171,7 +169,7 @@ class CloudSyncViewModel @JvmOverloads constructor(
             .onFailure { e -> onUploadFailed(sample, e) }
     }
 
-    /** Відправляє накопичені записи. Повертає true, якщо черга спорожніла. */
+    /** Sends queued records. Returns true if the queue is empty. */
     private suspend fun flushPending(announce: Boolean): Boolean {
         if (pending.isEmpty()) return true
         var sent = 0
@@ -217,7 +215,7 @@ class CloudSyncViewModel @JvmOverloads constructor(
     }
 
     private fun addPending(sample: SensorData) {
-        if (pending.size >= MAX_PENDING) pending.removeFirst()   // найстаріший запис відкидаємо
+        if (pending.size >= MAX_PENDING) pending.removeFirst()   // drop the oldest record
         pending.addLast(sample)
         _uiState.update { it.copy(pendingCount = pending.size) }
     }

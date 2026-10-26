@@ -20,32 +20,31 @@ import kotlinx.coroutines.launch
 import kotlin.math.atan2
 
 /**
- * ViewModel вкладки «Сенсор» (ЛР №1). Слухає акселерометр через помічник SensorReader,
- * передає кожен вимір у спільний SensorHub (для хмари, керування й інших екранів)
- * і визначає орієнтацію пристрою.
+ * Sensor tab: reads the accelerometer, publishes samples to SensorHub
+ * and detects device orientation.
  */
 class MonitorViewModel(
     private val reader: SensorReader = SensorReader(AppGraph.app),
     private val hub: SensorHub = AppGraph.sensorHub,
     private val system: SystemStateRepository = AppGraph.systemState,
-    // ЛР №6: 20 Гц (період 50 000 мкс) — частота, на якій навчена модель (вікно 20 вимірів ≈ 1 с)
+    // 20 Hz: the rate the ML model was trained on
     private val samplingPeriodUs: Int = SensorReader.PERIOD_20_HZ_US,
     private val clock: () -> Long = { SystemClock.elapsedRealtime() }
 ) : ViewModel() {
 
     private val detector = OrientationDetector()
 
-    // State: приватний змінюваний + публічний тільки для читання
+    // private mutable state, public read-only
     private val _state = MutableStateFlow(MonitorState(sensorAvailable = reader.isAvailable))
     val state: StateFlow<MonitorState> = _state.asStateFlow()
 
-    // Event: Channel доставляє кожну подію рівно один раз
+    // Channel delivers each event exactly once
     private val _events = Channel<MonitorEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
     private var sensorJob: Job? = null
 
-    // ЄДИНИЙ вхід у ViewModel — всі дії приходять сюди
+    // Single entry point for UI actions
     fun onAction(action: MonitorAction) {
         when (action) {
             MonitorAction.Start -> startSensor()
@@ -59,13 +58,13 @@ class MonitorViewModel(
         _state.update { it.copy(isRunning = true) }
         sensorJob = viewModelScope.launch {
             reader.readings(samplingPeriodUs).collect { raw ->
-                onSample(hub.publish(raw))   // фільтр ЛР №1 + розсилка іншим екранам
+                onSample(hub.publish(raw))   // filter + broadcast to other screens
             }
         }
     }
 
     private fun stopSensor() {
-        sensorJob?.cancel()   // скасування Flow → unregisterListener()
+        sensorJob?.cancel()   // cancelling the Flow unregisters the listener
         sensorJob = null
         _state.update { it.copy(isRunning = false) }
     }
@@ -76,7 +75,7 @@ class MonitorViewModel(
 
         val changed = detector.update(s.x, s.y, s.z, clock()) ?: return
         _state.update { it.copy(orientation = changed) }
-        system.setOrientation(changed.name)   // → хмара (ЛР №3), BLE-хаб (ЛР №2)
+        system.setOrientation(changed.name)   // → cloud, BLE hub
         if (_state.value.autoRotate) changed.screenOrientation?.let { _events.trySend(MonitorEvent.RotateScreen(it)) }
     }
 

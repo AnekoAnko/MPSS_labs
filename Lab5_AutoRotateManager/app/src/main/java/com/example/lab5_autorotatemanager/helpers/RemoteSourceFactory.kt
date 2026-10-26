@@ -4,10 +4,8 @@ import android.content.Context
 import com.example.lab5_autorotatemanager.BuildConfig
 
 /**
- * Вибір джерела команд за вмістом local.properties:
- *  • задано FIREBASE_DB_URL і FIREBASE_APP_ID → Firebase SDK (ValueEventListener);
- *  • задано лише FIREBASE_DB_URL               → REST Streaming (SSE);
- *  • нічого не задано                          → дистанційне керування вимкнене.
+ * Picks the command source from local.properties:
+ * DB URL + APP_ID → Firebase SDK; DB URL only → REST streaming; nothing → disabled.
  */
 object RemoteSourceFactory {
 

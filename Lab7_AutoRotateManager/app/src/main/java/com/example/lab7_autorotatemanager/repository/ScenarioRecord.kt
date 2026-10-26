@@ -4,10 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-/**
- * ЛР №7: рядок таблиці scenario_rules — одне Smart-правило користувача.
- * Enum зберігаємо рядками (name), тому TypeConverter не потрібен.
- */
+/** One user rule in scenario_rules. Enums are stored by name, so no TypeConverter is needed. */
 @Entity(tableName = "scenario_rules")
 data class ScenarioRecord(
     @PrimaryKey(autoGenerate = true)

@@ -20,10 +20,9 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * ЛР №7: головний екран. Сам нічого не вимірює і не відправляє — лише збирає в один State
- * те, що публікують інші модулі (SystemStateRepository) і що лежить у Room (SensorRepository).
- * Кнопки швидкого керування не чіпають залізо: надсилають ActuatorRequest у спільну шину,
- * а виконує його ControlViewModel (ЛР №4) або BleViewModel (реле хаба, ЛР №2).
+ * Main screen. Measures nothing itself: combines what other modules publish (SystemStateRepository)
+ * with the latest Room records. Quick controls send ActuatorRequest to the shared bus;
+ * ControlViewModel or BleViewModel executes it.
  */
 class DashboardViewModel(
     private val system: SystemStateRepository,
@@ -45,7 +44,7 @@ class DashboardViewModel(
         viewModelScope.launch { system.cloud.collect { c -> _state.update { it.copy(cloud = c) } } }
         viewModelScope.launch { system.ble.collect { b -> _state.update { it.copy(ble = b) } } }
         viewModelScope.launch { system.actuators.collect { a -> _state.update { it.copy(actuators = a) } } }
-        // Room сам оновлює Flow після кожного INSERT/UPDATE (synced) — список «живий»
+        // Room re-emits after every insert/update
         viewModelScope.launch {
             repository.recent(RECENT).collect { list -> _state.update { it.copy(records = list.map(::toItem)) } }
         }
@@ -53,7 +52,7 @@ class DashboardViewModel(
         viewModelScope.launch { repository.count().collect { n -> _state.update { it.copy(recordCount = n) } } }
     }
 
-    // ЄДИНИЙ вхід для дій користувача
+    // Single entry point for UI actions
     fun onAction(action: DashboardAction) {
         when (action) {
             is DashboardAction.Toggle -> toggle(action.type, action.on)

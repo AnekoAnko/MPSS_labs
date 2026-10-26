@@ -12,9 +12,8 @@ import com.example.lab7_autorotatemanager.monitor.MonitorViewModel
 import com.example.lab7_autorotatemanager.scenario.ScenarioViewModel
 
 /**
- * ЛР №7: фабрика ViewModel для Manual DI. Android створює ViewModel сам (щоб вона пережила
- * поворот екрана), тому передати аргументи в конструктор можна лише через Factory.
- * MainActivity: `private val vm: XxxViewModel by viewModels { factory }`.
+ * Creates ViewModels with constructor dependencies from the container.
+ * Usage: `private val vm: XxxViewModel by viewModels { factory }`.
  */
 class AppViewModelFactory(private val c: AppContainer) : ViewModelProvider.Factory {
 

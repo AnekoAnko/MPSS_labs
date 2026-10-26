@@ -17,11 +17,9 @@ import java.util.UUID
 import kotlin.random.Random
 
 /**
- * Mock-реалізація IBleConnector: імітує життєвий цикл BluetoothGatt
- * (connectGatt → onConnectionStateChange → discoverServices → requestMtu → CCCD)
- * і поведінку віртуального хаба на іншому боці радіоканалу.
- *
- * Усі затримки зроблені через suspend-функції, тому головний потік не блокується.
+ * Mock IBleConnector: simulates the BluetoothGatt lifecycle
+ * (connect → discover services → MTU → CCCD) and the virtual hub on the other side.
+ * All delays are suspend functions, so the main thread is never blocked.
  */
 class MockBleConnector(
     private val logger: BleLogger,
@@ -34,19 +32,17 @@ class MockBleConnector(
     private val _notifications = MutableSharedFlow<BleNotification>(extraBufferCapacity = 16)
     override val notifications: SharedFlow<BleNotification> = _notifications.asSharedFlow()
 
-    /** Режим «перешкоди в ефірі»: втрата пакетів, збої підключення та обриви зв'язку. */
+    /** Interference mode: packet loss, failed connects and link drops. */
     @Volatile
     var interferenceEnabled = false
 
-    /** Android дозволяє лише одну GATT-операцію одночасно — серіалізуємо їх м'ютексом. */
+    /** Android allows one GATT operation at a time, so operations are serialized. */
     private val gattMutex = Mutex()
 
     private val hub = VirtualHub()
     private var device: BleDevice? = null
     private var heartbeatJob: Job? = null
     private var reconnectJob: Job? = null
-
-    // ---------------------------------------------------------------- connect / disconnect
 
     override suspend fun connect(device: BleDevice): Boolean {
         if (!device.connectable) {
@@ -84,7 +80,7 @@ class MockBleConnector(
         _state.value = BleConnectionState.DISCONNECTED
     }
 
-    /** Одна спроба: з'єднання → пошук сервісів → MTU → підписка на Notify. */
+    /** One attempt: connect → discover services → MTU → enable notifications. */
     private suspend fun establishLink(device: BleDevice): Boolean {
         delay(CONNECT_LATENCY_MS)
         if (interferenceEnabled && Random.nextFloat() < CONNECT_FAIL_PROBABILITY) {
@@ -110,8 +106,6 @@ class MockBleConnector(
         startHeartbeat()
         return true
     }
-
-    // ---------------------------------------------------------------- read / write
 
     override suspend fun sendData(data: String, characteristic: UUID): Boolean {
         val charName = BleProfile.nameOf(characteristic)
@@ -141,7 +135,7 @@ class MockBleConnector(
         }
     }
 
-    /** Запис одного пакета з повторними спробами (exponential backoff). */
+    /** Writes one packet with retries (exponential backoff). */
     private suspend fun writeChunk(
         charName: String,
         chunk: ByteArray,
@@ -162,7 +156,7 @@ class MockBleConnector(
             val lost = interferenceEnabled && Random.nextFloat() < PACKET_LOSS_PROBABILITY
 
             if (!withResponse) {
-                // Без підтвердження додаток не дізнається про втрату — лише mock бачить «ефір»
+                // Without ACK the app can't detect the loss; only the mock sees it
                 if (lost) logger.log(LogType.WARN, "[mock] пакет загублено в ефірі (Write Without Response не має ACK)")
                 return true
             }
@@ -193,9 +187,7 @@ class MockBleConnector(
         }
     }
 
-    // ---------------------------------------------------------------- віртуальний пристрій
-
-    /** Пристрій обробляє отримані дані й відповідає через Notify характеристики STATUS. */
+    /** The hub processes received data and replies via STATUS notifications. */
     private fun deliverToHub(characteristic: UUID, data: String) {
         scope.launch {
             delay(HUB_RESPONSE_DELAY_MS)
@@ -210,7 +202,7 @@ class MockBleConnector(
         _notifications.emit(BleNotification(BleProfile.CHAR_DEVICE_STATUS, value))
     }
 
-    /** Пристрій кожні 5 с надсилає свій статус; у режимі перешкод зв'язок може обірватися. */
+    /** The hub sends its status every 5 s; with interference the link may drop. */
     private fun startHeartbeat() {
         heartbeatJob?.cancel()
         heartbeatJob = scope.launch {
@@ -226,7 +218,7 @@ class MockBleConnector(
         }
     }
 
-    /** Обрив зв'язку: переходимо в RECONNECTING і пробуємо відновити з'єднання. */
+    /** Link lost: switch to RECONNECTING and retry. */
     private fun onLinkLost() {
         val target = device ?: return
         logger.log(LogType.ERROR, "onConnectionStateChange: status=8 (GATT_CONN_TIMEOUT), зв'язок втрачено")
@@ -243,7 +235,7 @@ class MockBleConnector(
         }
     }
 
-    /** 400, 800, 1600 мс… */
+    /** 400, 800, 1600 ms… */
     private fun backoffFor(attempt: Int): Long = BASE_BACKOFF_MS shl (attempt - 1)
 
     companion object {
@@ -263,7 +255,7 @@ class MockBleConnector(
     }
 }
 
-/** Логіка «прошивки» віртуального хаба (розумного реле). */
+/** Firmware logic of the virtual hub (smart relay). */
 private class VirtualHub {
     private var relayOn = false
     private var battery = 92

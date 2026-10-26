@@ -1,12 +1,12 @@
 package com.example.lab7_autorotatemanager.monitor
 
-// State — усе, що зараз видно на вкладці «Сенсор». Тільки val, значення за замовчуванням обов'язкові.
+// State: the Sensor tab.
 data class MonitorState(
-    /** Відфільтровані значення акселерометра, м/с². */
+    /** Filtered accelerometer values, m/s². */
     val x: Float = 0f,
     val y: Float = 0f,
     val z: Float = 0f,
-    /** Кут нахилу від вертикалі в площині екрана, градуси (0° — рівно в портреті). */
+    /** Tilt in the screen plane, degrees (0° = upright portrait). */
     val screenAngle: Float = 0f,
     val orientation: DeviceOrientation = DeviceOrientation.PORTRAIT,
     val sensorAvailable: Boolean = true,
@@ -14,18 +14,18 @@ data class MonitorState(
     val isRunning: Boolean = false
 )
 
-// Action — усі дії, які приходять на цей екран (від користувача та з життєвого циклу Activity).
+// Action: user intents and Activity lifecycle events.
 sealed interface MonitorAction {
-    /** onResume: екран видно → слухаємо сенсор. */
+    /** onResume: start the sensor. */
     data object Start : MonitorAction
-    /** onPause: екран сховано → відписуємось, економимо батарею. */
+    /** onPause: stop the sensor to save battery. */
     data object Stop : MonitorAction
-    /** Перемикач «Керувати поворотом екрана». */
+    /** "Control screen rotation" switch. */
     data class SetAutoRotate(val enabled: Boolean) : MonitorAction
 }
 
-// Event — разові команди від ViewModel до екрана.
+// Event: one-off commands to the screen.
 sealed interface MonitorEvent {
-    /** Повернути екран: значення для Activity.requestedOrientation. */
+    /** Rotate the screen: value for Activity.requestedOrientation. */
     data class RotateScreen(val requestedOrientation: Int) : MonitorEvent
 }

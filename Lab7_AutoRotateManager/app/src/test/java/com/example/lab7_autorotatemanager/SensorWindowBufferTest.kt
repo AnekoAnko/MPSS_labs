@@ -10,10 +10,10 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** ЛР №6: unit-тести кільцевого буфера і згладжування (запуск: ПКМ по файлу → Run). */
+/** Unit tests for the window buffer and prediction smoothing. */
 class SensorWindowBufferTest {
 
-    private val periodNs = 50_000_000L   // 20 Гц
+    private val periodNs = 50_000_000L   // 20 Hz
 
     @Test
     fun inferenceEveryHopAfterWindowIsFull() {
@@ -25,14 +25,14 @@ class SensorWindowBufferTest {
     @Test
     fun modelInputIsCenteredAndInGUnits() {
         val buffer = SensorWindowBuffer()
-        // гравітація по Y + «крок» по Z: +g на парних вимірах, −g на непарних
+        // gravity on Y + step on Z: +g on even samples, −g on odd
         repeat(20) { i -> buffer.add(0f, 9.80665f, if (i % 2 == 0) 9.80665f else -9.80665f, i * periodNs) }
         val input = buffer.toModelInput()
         assertEquals(60, input.size)
         for (t in 0 until 20) {
-            assertEquals(0f, input[t * 3], 1e-6f)            // X: без руху
-            assertEquals(0f, input[t * 3 + 1], 1e-5f)        // Y: гравітацію прибрано
-            assertEquals(if (t % 2 == 0) 1f else -1f, input[t * 3 + 2], 1e-5f)   // Z: ±1 g, порядок збережено
+            assertEquals(0f, input[t * 3], 1e-6f)            // X: no motion
+            assertEquals(0f, input[t * 3 + 1], 1e-5f)        // Y: gravity removed
+            assertEquals(if (t % 2 == 0) 1f else -1f, input[t * 3 + 2], 1e-5f)   // Z: ±1 g, order preserved
         }
     }
 
@@ -51,7 +51,7 @@ class SensorWindowBufferTest {
         fun p(c: Int, conf: Float) = Prediction(FloatArray(4) { if (it == c) conf else (1 - conf) / 3 }, 0.3f, 0)
         assertNull(smoother.update(p(2, 0.9f)))
         assertEquals(ActivityClass.RUNNING, smoother.update(p(2, 0.9f)))
-        assertNull(smoother.update(p(3, 0.4f)))               // невпевнений прогноз ігнорується
+        assertNull(smoother.update(p(3, 0.4f)))               // low-confidence prediction is ignored
         assertEquals("Running (90%)", p(2, 0.9f).format())
     }
 }

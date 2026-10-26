@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.example.lab3_autorotatemanager.cloud.CloudUiState
 import com.example.lab3_autorotatemanager.cloud.SyncStatus
 
-/** Індикатор «Хмарна синхронізація»: зелений — останній запит успішний, червоний — помилка або Pending. */
+/** Cloud sync indicator: green = last request succeeded, red = error or pending. */
 @Composable
 fun CloudSyncCard(
     state: CloudUiState,

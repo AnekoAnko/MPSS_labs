@@ -40,15 +40,15 @@ import kotlin.math.abs
 import kotlin.math.min
 
 /**
- * Вкладка «Сенсор»: малює State і надсилає Action.
- * [header] — картки інших модулів на цій вкладці (хмарна синхронізація тощо).
+ * Sensor tab: renders state and sends actions.
+ * [header] hosts cards from other modules (cloud sync, AI).
  */
 @Composable
 fun MonitorScreen(vm: MonitorViewModel, header: @Composable () -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    // Слухаємо разові Event
+    // One-off events
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
             when (event) {
@@ -60,7 +60,7 @@ fun MonitorScreen(vm: MonitorViewModel, header: @Composable () -> Unit = {}) {
     MonitorContent(state = state, onAction = vm::onAction, header = header)
 }
 
-// Чиста функція: State на вході, Action на виході.
+// Stateless content: state in, actions out.
 @Composable
 fun MonitorContent(
     state: MonitorState,
@@ -83,7 +83,7 @@ fun MonitorContent(
             Text("Акселерометр недоступний на цьому пристрої", color = MaterialTheme.colorScheme.error)
         }
 
-        // Значення X, Y, Z
+        // X, Y, Z values
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
                 Text("Акселерометр, м/с²", fontWeight = FontWeight.SemiBold)
@@ -98,7 +98,7 @@ fun MonitorContent(
 
         OrientationIndicator(x = state.x, y = state.y, angle = state.screenAngle)
 
-        // Індикатор кута нахилу (0..90°)
+        // Tilt indicator (0..90°)
         Column(Modifier.fillMaxWidth()) {
             Text("Нахил від вертикалі: ${"%.0f".format(abs(state.screenAngle))}°")
             LinearProgressIndicator(
@@ -118,10 +118,7 @@ fun MonitorContent(
     }
 }
 
-/**
- * Canvas-індикатор: стрілка показує, де «верх» у реальному світі,
- * а точка — напрямок гравітації в площині екрана.
- */
+/** Canvas indicator: the arrow shows real-world "up", the dot shows gravity in the screen plane. */
 @Composable
 fun OrientationIndicator(x: Float, y: Float, angle: Float) {
     val primary = MaterialTheme.colorScheme.primary
@@ -148,7 +145,7 @@ fun OrientationIndicator(x: Float, y: Float, angle: Float) {
     }
 }
 
-/** LocalContext у Compose — це Activity (можливо, загорнута в ContextWrapper). */
+/** LocalContext may be an Activity wrapped in a ContextWrapper. */
 private fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()

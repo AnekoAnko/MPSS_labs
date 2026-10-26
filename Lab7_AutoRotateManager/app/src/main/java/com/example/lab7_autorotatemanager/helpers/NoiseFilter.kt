@@ -1,9 +1,6 @@
 package com.example.lab7_autorotatemanager.helpers
 
-/**
- * ЛР №7: рівень шумопоглинання для Smart-сценаріїв.
- * [window] — кількість вимірів у медіанному фільтрі (при 20 Гц: 5 вимірів ≈ 0,25 с).
- */
+/** Noise reduction level for smart scenarios; [window] = median filter size in samples. */
 enum class NoiseLevel(val label: String, val window: Int) {
     OFF("вимкнено", 1),
     LOW("слабке (3)", 3),
@@ -12,12 +9,8 @@ enum class NoiseLevel(val label: String, val window: Int) {
 }
 
 /**
- * ЛР №7: медіанний фільтр по кожній осі (захист від «хибного спрацювання»).
- *
- * Низькочастотний фільтр ЛР №1 згладжує сигнал, але одиночний викид (удар по столу,
- * «глюк» датчика) все одно зсуває середнє. Медіана вікна з N вимірів повністю ігнорує
- * викиди, які займають менше половини вікна, і майже не спотворює фронти справжнього руху.
- * Клас не залежить від Android — перевіряється звичайним unit-тестом.
+ * Per-axis median filter. Removes single spikes (shorter than half the window)
+ * while keeping real motion edges almost intact.
  */
 class MedianNoiseFilter(window: Int = NoiseLevel.MEDIUM.window) {
 
@@ -31,7 +24,7 @@ class MedianNoiseFilter(window: Int = NoiseLevel.MEDIUM.window) {
     private val ys = ArrayDeque<Float>()
     private val zs = ArrayDeque<Float>()
 
-    /** Додає вимір і повертає відфільтроване значення (x, y, z). */
+    /** Adds a sample and returns the filtered (x, y, z). */
     fun apply(x: Float, y: Float, z: Float): Triple<Float, Float, Float> {
         if (window == 1) return Triple(x, y, z)
         push(xs, x); push(ys, y); push(zs, z)

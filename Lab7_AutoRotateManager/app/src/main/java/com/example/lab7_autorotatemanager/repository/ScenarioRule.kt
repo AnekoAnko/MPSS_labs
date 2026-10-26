@@ -4,19 +4,19 @@ import kotlin.math.abs
 import kotlin.math.acos
 import kotlin.math.sqrt
 
-/** ЛР №7: величина, яку перевіряє Smart-сценарій. */
+/** Value checked by a rule. */
 enum class Metric(val label: String, val unit: String) {
     X("X", "м/с²"),
     Y("Y", "м/с²"),
     Z("Z", "м/с²"),
-    /** Модуль вектора |a|; у спокої ≈ 9,81. */
+    /** Magnitude |a|; ≈ 9.81 at rest. */
     MAGNITUDE("|a|", "м/с²"),
-    /** Динамічна складова ||a| − g|: ≈ 0 у спокої, росте під час руху й тряски. */
+    /** Dynamic part ||a| − g|: ≈ 0 at rest, grows with motion and shaking. */
     DYNAMIC("|a|−g", "м/с²"),
-    /** Кут нахилу від вертикалі, як у DecisionEngine ЛР №4. */
+    /** Tilt from vertical, same as DecisionEngine. */
     TILT("нахил", "°");
 
-    /** Значення величини для одного виміру (x, y, z — м/с²). */
+    /** Value of this metric for one sample (m/s²). */
     fun of(x: Float, y: Float, z: Float): Float {
         val m = sqrt(x * x + y * y + z * z)
         return when (this) {
@@ -42,10 +42,7 @@ enum class Comparison(val symbol: String) {
         if (this == GREATER) value > threshold else value < threshold
 }
 
-/**
- * ЛР №7: правило «Якщо [metric] [comparison] [threshold], тоді [action]».
- * Модель для ViewModel і State; у Room зберігається як ScenarioRecord.
- */
+/** Rule "IF [metric] [comparison] [threshold] THEN [action]". Stored in Room as ScenarioRecord. */
 data class ScenarioRule(
     val id: Long = 0,
     val metric: Metric,
@@ -53,17 +50,17 @@ data class ScenarioRule(
     val threshold: Float,
     val action: ActuatorType,
     val enabled: Boolean = true,
-    /** Скільки умова має триматися, щоб правило спрацювало (захист від одиночних викидів). */
+    /** How long the condition must hold before the rule fires (filters single spikes). */
     val holdMs: Long = DEFAULT_HOLD_MS
 ) {
-    /** «Якщо X > 10 м/с² → Вібрація». */
+    /** Human-readable rule text for the UI. */
     fun describe(): String =
         "Якщо ${metric.label} ${comparison.symbol} ${"%.1f".format(threshold)} ${metric.unit} → ${action.label}"
 
     companion object {
         const val DEFAULT_HOLD_MS = 300L
 
-        /** Правила, які створюються при першому запуску. */
+        /** Rules created on first launch. */
         val DEFAULTS = listOf(
             ScenarioRule(metric = Metric.X, comparison = Comparison.GREATER, threshold = 10f, action = ActuatorType.VIBRATION),
             ScenarioRule(metric = Metric.DYNAMIC, comparison = Comparison.GREATER, threshold = 6f, action = ActuatorType.HUB_RELAY),
@@ -82,7 +79,7 @@ fun ScenarioRule.toRecord() = ScenarioRecord(
     holdMs = holdMs
 )
 
-/** Невідомі значення (наприклад, після зміни enum) не ламають додаток — рядок пропускається. */
+/** Unknown values (e.g. after an enum change) are skipped instead of crashing. */
 fun ScenarioRecord.toRule(): ScenarioRule? = try {
     ScenarioRule(
         id = id,

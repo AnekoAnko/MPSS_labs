@@ -3,20 +3,16 @@ package com.example.lab6_autorotatemanager.control
 import com.example.lab6_autorotatemanager.helpers.RemoteConnection
 import com.example.lab6_autorotatemanager.helpers.RemoteMode
 
-/** Хто останнім змінив стан виконавчого пристрою (актуатора). */
+/** Who changed an actuator last. */
 enum class ControlSource(val label: String) {
     AUTO("авто · DecisionEngine"),
     MANUAL("вручну · Manual Control"),
     REMOTE("хмара · Firebase"),
-    AI("ШІ · ActivityClassifier"),     // ЛР №6
+    AI("ШІ · ActivityClassifier"),
     SYSTEM("система")
 }
 
-/**
- * Стан одного виконавчого пристрою.
- * hardware = true — керуємо реальним залізом смартфона,
- * hardware = false — апаратної можливості немає, стан лише імітується в UI.
- */
+/** State of one actuator. hardware = false means the device lacks it and the state is only simulated. */
 data class ActuatorStatus(
     val on: Boolean = false,
     val source: ControlSource = ControlSource.SYSTEM,
@@ -24,22 +20,19 @@ data class ActuatorStatus(
     val hardware: Boolean = true
 )
 
-// State — усе, що видно на вкладці «Керування» (ЛР №4).
+// State: the Control tab.
 data class ControlState(
-    // DecisionEngine
     val autoEnabled: Boolean = true,
     val threshold: Float = DecisionEngine.DEFAULT_THRESHOLD,
     val tilt: Float = 0f,
     val alarmActive: Boolean = false,
-    /** ЛР №6: актуатори ввімкнено за прогнозом ML-моделі («Аномалія»). */
+    /** Actuators turned on by the model (anomaly). */
     val aiAlarm: Boolean = false,
-    // Виконавчі пристрої
     val flashlight: ActuatorStatus = ActuatorStatus(),
     val siren: ActuatorStatus = ActuatorStatus(),
     val lamp: ActuatorStatus = ActuatorStatus(hardware = false),
     val hasFlash: Boolean = false,
     val hasVibrator: Boolean = false,
-    // Дистанційне керування
     val remoteMode: RemoteMode = RemoteMode.NONE,
     val remoteConnection: RemoteConnection = RemoteConnection.DISCONNECTED,
     val remoteDetails: String? = null,
@@ -49,22 +42,22 @@ data class ControlState(
     val log: List<String> = emptyList()
 )
 
-// Action — дії користувача: автоматика і панель «Manual Control».
+// Action: automation and manual controls.
 sealed interface ControlAction {
-    /** onStart Activity: підписуємось на команди з хмари (Firebase). */
+    /** onStart: subscribe to cloud commands. */
     data object Start : ControlAction
-    /** onStop Activity (окрім повороту екрана): знімаємо слухача Firebase. */
+    /** onStop (not on rotation): unsubscribe from cloud commands. */
     data object Stop : ControlAction
     data class SetAutoEnabled(val enabled: Boolean) : ControlAction
     data class SetThreshold(val value: Float) : ControlAction
     data class SetFlashlight(val on: Boolean) : ControlAction
     data class SetSiren(val on: Boolean) : ControlAction
     data class SetLamp(val on: Boolean) : ControlAction
-    /** Аварійна кнопка «Вимкнути все». */
+    /** Emergency "all off" button. */
     data object AllOff : ControlAction
 }
 
-// Event — разові повідомлення.
+// Event: one-off messages.
 sealed interface ControlEvent {
     data class ShowMessage(val text: String) : ControlEvent
 }

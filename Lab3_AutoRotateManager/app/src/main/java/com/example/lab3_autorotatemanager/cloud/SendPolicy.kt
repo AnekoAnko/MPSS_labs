@@ -4,10 +4,8 @@ import kotlin.math.abs
 import kotlin.math.max
 
 /**
- * Політика відправки, щоб не перевантажувати мережу:
- *  • за інтервалом — не частіше ніж раз на [intervalMs], і лише якщо з'явилися нові дані;
- *  • за зміною — одразу, якщо будь-яка вісь змінилася більше ніж на [delta] м/с²,
- *    але не частіше ніж раз на [minGapMs].
+ * Limits uploads: at most once per [intervalMs] when there is new data,
+ * or immediately when any axis changes by more than [delta] m/s² (but not more often than [minGapMs]).
  */
 class SendPolicy(
     val intervalMs: Long = 5_000,
@@ -17,7 +15,7 @@ class SendPolicy(
     private var lastSent: SensorData? = null
     private var lastSentAt = 0L
 
-    /** Чи змінилось значення на величину Δ відносно останнього відправленого. */
+    /** True if any axis changed by more than delta since the last upload. */
     fun deltaExceeded(sample: SensorData, now: Long): Boolean {
         val prev = lastSent ?: return true
         if (now - lastSentAt < minGapMs) return false
@@ -25,7 +23,7 @@ class SendPolicy(
         return change > delta
     }
 
-    /** Чи минув інтервал і чи є новий вимір після останньої відправки. */
+    /** True if the interval passed and there is a new sample. */
     fun intervalElapsed(sample: SensorData, now: Long): Boolean {
         val prev = lastSent ?: return true
         return now - lastSentAt >= intervalMs && sample.timestamp > prev.timestamp

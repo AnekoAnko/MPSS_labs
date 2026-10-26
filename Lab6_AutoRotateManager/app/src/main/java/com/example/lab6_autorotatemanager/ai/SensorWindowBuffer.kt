@@ -3,23 +3,9 @@ package com.example.lab6_autorotatemanager.ai
 import com.example.lab6_autorotatemanager.helpers.SensorReader
 
 /**
- * ЛР №6: кільцевий буфер (Circular Buffer) для вікна вимірів акселерометра.
- *
- * Модель приймає не одне число, а «вікно» — останні [windowSize] вимірів (x, y, z),
- * тобто ≈ 1 с руху при частоті 20 Гц. Буфер — масив фіксованого розміру з індексом
- * запису [head]: новий вимір перезаписує найстаріший, тому пам'ять не виділяється
- * на кожну подію сенсора (важливо при 20–60 подіях за секунду).
- *
- *   індекси:  [0][1][2] … [19]
- *                    ↑ head — сюди піде наступний вимір (найстаріший буде перезаписано)
- *
- * Додатково буфер:
- *  • прорiджує потік за часом (не частіше ніж раз на [minPeriodNs]), щоб вікно завжди
- *    покривало ≈ 1 с незалежно від реальної частоти сенсора;
- *  • повідомляє, коли пора запускати inference — кожні [hop] нових вимірів
- *    (вікна перекриваються на 75 %, прогноз оновлюється ~4 рази на секунду).
- *
- * Клас не залежить від Android — його легко перевірити звичайним тестом.
+ * Circular buffer holding the last [windowSize] accelerometer samples (≈ 1 s at 20 Hz).
+ * New samples overwrite the oldest one at [head], so nothing is allocated per event.
+ * Samples closer than [minPeriodNs] are dropped; [add] reports when a new inference is due (every [hop] samples).
  */
 class SensorWindowBuffer(
     val windowSize: Int = WINDOW_SIZE,
@@ -27,20 +13,17 @@ class SensorWindowBuffer(
     private val minPeriodNs: Long = MIN_PERIOD_NS
 ) {
     private val data = FloatArray(windowSize * AXES)   // x0 y0 z0 x1 y1 z1 …
-    private var head = 0                                // позиція наступного запису
+    private var head = 0                                // next write position
     private var lastAcceptedNs = Long.MIN_VALUE
     private var sinceLastInference = 0
 
-    /** Скільки вимірів уже є у вікні (0..windowSize). */
+    /** Number of samples currently in the window (0..windowSize). */
     var size = 0
         private set
 
     val isFull: Boolean get() = size == windowSize
 
-    /**
-     * Додає вимір. [timestampNs] — SensorEvent.timestamp (наносекунди).
-     * Повертає true, якщо вікно заповнене і настав час для нового inference.
-     */
+    /** Adds a sample (timestamp in ns). Returns true when the window is full and a new inference is due. */
     fun add(x: Float, y: Float, z: Float, timestampNs: Long): Boolean {
         if (lastAcceptedNs != Long.MIN_VALUE && timestampNs - lastAcceptedNs < minPeriodNs) return false
         lastAcceptedNs = timestampNs
@@ -61,21 +44,16 @@ class SensorWindowBuffer(
     }
 
     /**
-     * Перетворення сирих даних у вхідний формат моделі — тензор [1, windowSize, 3] float32,
-     * поданий як плаский масив у порядку «від найстарішого до найновішого виміру»:
-     *   1) розгортаємо кільце (найстаріший вимір стоїть на позиції head);
-     *   2) з кожної осі віднімаємо середнє по вікну → прибираємо гравітацію і позу телефону,
-     *      лишається лише динаміка руху;
-     *   3) ділимо на g = 9.80665 → значення в одиницях g (≈ −3…3), як під час навчання.
-     * Повертає новий масив (знімок), тому буфер можна далі заповнювати з головного потоку,
-     * поки inference працює у фоновому потоці.
+     * Builds the model input [1, windowSize, 3] from oldest to newest sample:
+     * subtracts the per-axis mean (removes gravity and device pose) and divides by g.
+     * Returns a copy, so the buffer can keep filling while inference runs.
      */
     fun toModelInput(): FloatArray {
         check(isFull) { "Вікно ще не заповнене: $size/$windowSize" }
         val out = FloatArray(windowSize * AXES)
         val mean = FloatArray(AXES)
         for (t in 0 until windowSize) {
-            val src = ((head + t) % windowSize) * AXES      // t = 0 → найстаріший вимір
+            val src = ((head + t) % windowSize) * AXES      // t = 0 is the oldest sample
             for (a in 0 until AXES) {
                 out[t * AXES + a] = data[src + a]
                 mean[a] += data[src + a]
@@ -100,13 +78,13 @@ class SensorWindowBuffer(
 
     companion object {
         const val AXES = 3
-        /** 20 вимірів ≈ 1 с при 20 Гц — розмір вікна, на якому навчена модель. */
+        /** Window size the model was trained on (20 samples ≈ 1 s at 20 Hz). */
         const val WINDOW_SIZE = 20
-        /** Новий прогноз — кожні 5 вимірів (≈ 250 мс). */
+        /** Run inference every 5 samples (≈ 250 ms). */
         const val HOP = 5
-        /** 20 Гц = період 50 мс; беремо 45 мс із запасом на джитер подій. */
+        /** 20 Hz = 50 ms period; 45 ms leaves room for jitter. */
         const val MIN_PERIOD_NS = 45_000_000L
-        /** Період опитування сенсора для registerListener, мкс (20 Гц). */
+        /** Sensor sampling period for registerListener, µs (20 Hz). */
         const val SAMPLING_PERIOD_US = SensorReader.PERIOD_20_HZ_US
         const val GRAVITY = 9.80665f
     }

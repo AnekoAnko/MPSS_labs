@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Стежить за наявністю інтернету (потрібен дозвіл ACCESS_NETWORK_STATE). */
+/** Tracks internet availability (requires ACCESS_NETWORK_STATE). */
 class ConnectivityMonitor(context: Context) {
 
     private val cm = context.getSystemService(ConnectivityManager::class.java)

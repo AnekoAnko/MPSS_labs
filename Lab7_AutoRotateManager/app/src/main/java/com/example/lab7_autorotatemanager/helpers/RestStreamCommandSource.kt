@@ -9,12 +9,8 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * Резервний варіант дистанційного керування без Firebase SDK:
- * REST Streaming — GET control.json з заголовком Accept: text/event-stream.
- * Сервер тримає HTTP-з'єднання відкритим і надсилає Server-Sent Events:
- *   put / patch — дані змінилися;  keep-alive — «пульс» кожні ~30 с;
- *   cancel — правила безпеки забороняють читання;  auth_revoked — токен недійсний.
- * При розриві — повторне підключення з експоненційною затримкою 1 → 2 → 4 … 30 с.
+ * Cloud commands without the Firebase SDK: REST streaming (GET control.json, text/event-stream).
+ * Handles put/patch, keep-alive, cancel and auth_revoked; reconnects with backoff 1 → 2 → 4 … 30 s.
  */
 class RestStreamCommandSource(
     baseUrl: String,
@@ -29,7 +25,7 @@ class RestStreamCommandSource(
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS)   // потік безстроковий: тайм-аут читання вимкнено
+        .readTimeout(0, TimeUnit.MILLISECONDS)   // endless stream: no read timeout
         .build()
 
     private val gson = Gson()

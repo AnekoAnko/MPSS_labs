@@ -7,25 +7,17 @@ import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
 /**
- * ЛР №5: DAO (Data Access Object) — перелік операцій із таблицею sensor_records.
- * Room сам генерує реалізацію (SensorDao_Impl) на етапі компіляції через KSP
- * і перевіряє SQL-запити ще до запуску додатка.
- *
- *  • suspend-функції виконуються в корутині й не блокують UI-потік;
- *  • функції, що повертають Flow, — «живі» запити: Room повторно виконує їх
- *    після кожної зміни таблиці і віддає новий список (графік оновлюється сам).
+ * Queries for sensor_records. Room generates the implementation with KSP and validates SQL at build time.
+ * suspend functions run off the main thread; Flow queries re-emit after every table change.
  */
 @Dao
 interface SensorDao {
 
-    /** Запис одного виміру; повертає id нового рядка. */
+    /** Inserts a sample; returns the new row id. */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(record: SensorRecord): Long
 
-    /**
-     * Останні [limit] записів для графіка. Внутрішній SELECT бере найновіші,
-     * зовнішній упорядковує їх за зростанням часу (зліва направо на осі X).
-     */
+    /** Last [limit] records for the chart: inner SELECT takes the newest, outer sorts them oldest first. */
     @Query(
         """
         SELECT * FROM (
@@ -35,19 +27,19 @@ interface SensorDao {
     )
     fun observeLatest(limit: Int): Flow<List<SensorRecord>>
 
-    /** Те саме одноразово (для перевірок і тестів). */
+    /** Same, one-shot (for checks and tests). */
     @Query("SELECT * FROM sensor_records ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getLatest(limit: Int): List<SensorRecord>
 
-    /** Історія спрацювань системи безпеки (найновіші зверху). */
+    /** Alarm trigger history, newest first. */
     @Query("SELECT * FROM sensor_records WHERE action_triggered = 1 ORDER BY timestamp DESC LIMIT :limit")
     fun observeTriggered(limit: Int): Flow<List<SensorRecord>>
 
-    /** Загальна кількість рядків у таблиці. */
+    /** Total row count. */
     @Query("SELECT COUNT(*) FROM sensor_records")
     fun observeCount(): Flow<Int>
 
-    /** Агрегати за період (наприклад, за останню годину) — рахує сама SQLite. */
+    /** Aggregates for a period, computed by SQLite. */
     @Query(
         """
         SELECT COUNT(*) AS count,
@@ -60,32 +52,32 @@ interface SensorDao {
     )
     suspend fun statsSince(since: Long): PeriodStats
 
-    /** Записи, які ще не відправлено в хмару (synced = false), від старих до нових. */
+    /** Records not yet uploaded (synced = 0), oldest first. */
     @Query("SELECT * FROM sensor_records WHERE synced = 0 ORDER BY timestamp ASC LIMIT :limit")
     suspend fun unsynced(limit: Int): List<SensorRecord>
 
-    /** Позначити запис як відправлений у хмару. */
+    /** Marks a record as uploaded. */
     @Query("UPDATE sensor_records SET synced = 1 WHERE id = :id")
     suspend fun markSynced(id: Long)
 
-    /** Чи відправлено запис (null — запису вже немає). */
+    /** Whether a record was uploaded (null if it no longer exists). */
     @Query("SELECT synced FROM sensor_records WHERE id = :id")
     suspend fun isSynced(id: Long): Boolean?
 
-    /** Скільки записів чекає відправки — «живий» лічильник для картки хмари. */
+    /** Live count of records waiting for upload. */
     @Query("SELECT COUNT(*) FROM sensor_records WHERE synced = 0")
     fun observeUnsyncedCount(): Flow<Int>
 
-    /** Ротація: видалити записи, старші за вказаний момент. Повертає кількість видалених. */
+    /** Deletes records older than [before]; returns the number deleted. */
     @Query("DELETE FROM sensor_records WHERE timestamp < :before")
     suspend fun deleteOlderThan(before: Long): Int
 
-    /** Повне очищення історії (кнопка на екрані «Аналітика»). */
+    /** Clears the whole history. */
     @Query("DELETE FROM sensor_records")
     suspend fun deleteAll()
 }
 
-/** Результат агрегатного запиту statsSince (поля = псевдоніми AS у SQL). */
+/** Result of statsSince (field names match the SQL aliases). */
 data class PeriodStats(
     val count: Int,
     val minValue: Float?,

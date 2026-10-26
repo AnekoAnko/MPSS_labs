@@ -8,10 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * Помічник: стежить за наявністю інтернету (потрібен дозвіл ACCESS_NETWORK_STATE).
- * start()/stop() можна викликати багато разів (onStart/onStop Activity) — подвійної реєстрації не буде.
- */
+/** Tracks internet availability. start()/stop() are idempotent. */
 class ConnectivityMonitor(context: Context) {
 
     private val cm = context.getSystemService(ConnectivityManager::class.java)
@@ -32,7 +29,7 @@ class ConnectivityMonitor(context: Context) {
 
     fun start() {
         if (registered) return
-        _isOnline.value = checkNow()   // поки callback був знятий, мережа могла змінитися
+        _isOnline.value = checkNow()   // the network may have changed while unregistered
         cm.registerDefaultNetworkCallback(callback)
         registered = true
     }

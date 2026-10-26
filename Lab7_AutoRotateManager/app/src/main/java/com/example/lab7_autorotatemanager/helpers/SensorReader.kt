@@ -9,20 +9,19 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
-/** Один вимір акселерометра, м/с²; timestampNs — SensorEvent.timestamp. */
+/** One accelerometer sample, m/s²; timestampNs = SensorEvent.timestamp. */
 data class SensorSample(val x: Float, val y: Float, val z: Float, val timestampNs: Long)
 
 /**
- * Помічник: перетворює SensorEventListener (Android API) на Flow.
- * Слухач реєструється, коли Flow починають збирати, і знімається при cancel()
- * (MonitorAction.Stop у onPause) — сенсор не працює у фоні.
+ * Wraps SensorEventListener as a Flow. The listener is registered on collect
+ * and removed on cancel, so the sensor never runs in the background.
  */
 class SensorReader(context: Context) {
 
     private val manager = context.getSystemService(SensorManager::class.java)
     private val sensor: Sensor? = manager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
-    /** Чи є акселерометр на пристрої. */
+    /** Whether the device has an accelerometer. */
     val isAvailable: Boolean get() = sensor != null
 
     fun readings(samplingPeriodUs: Int = DELAY_UI): Flow<SensorSample> = callbackFlow {
@@ -34,17 +33,17 @@ class SensorReader(context: Context) {
             override fun onAccuracyChanged(s: Sensor?, accuracy: Int) = Unit
         }
         if (sensor != null) manager?.registerListener(listener, sensor, samplingPeriodUs)
-        awaitClose { manager?.unregisterListener(listener) }   // викликається при cancel()
+        awaitClose { manager?.unregisterListener(listener) }   // called on cancel()
     }
 
     companion object {
-        /** Стандартна частота для інтерфейсу (≈ 15 Гц). */
+        /** Standard UI rate (≈ 15 Hz). */
         const val DELAY_UI = SensorManager.SENSOR_DELAY_UI
 
-        /** 20 Гц (період 50 000 мкс) — частота, на якій навчена ML-модель ЛР №6. */
+        /** 20 Hz (50,000 µs), the rate the ML model was trained on. */
         const val PERIOD_20_HZ_US = 50_000
 
-        /** Прискорення вільного падіння, м/с² (для шкал на екрані). */
+        /** Standard gravity, m/s². */
         const val GRAVITY = SensorManager.GRAVITY_EARTH
     }
 }

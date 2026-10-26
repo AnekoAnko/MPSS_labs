@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-/** Картка «Хмарна синхронізація» (ЛР №3) на вкладці «Сенсор»: малює State, надсилає Action, показує Event. */
+/** Cloud sync card: renders state, sends actions, shows events. */
 @Composable
 fun CloudScreen(vm: CloudViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -47,7 +47,7 @@ fun CloudScreen(vm: CloudViewModel) {
     CloudContent(state = state, onAction = vm::onAction)
 }
 
-/** Індикатор: зелений — останній запит успішний, червоний — помилка або Pending. */
+/** Green: last request succeeded; red: error or pending. */
 @Composable
 fun CloudContent(state: CloudState, onAction: (CloudAction) -> Unit) {
     val color = when (state.status) {

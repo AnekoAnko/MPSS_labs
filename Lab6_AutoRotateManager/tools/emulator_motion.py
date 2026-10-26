@@ -1,20 +1,3 @@
-"""
-ЛР №6: «програвач» рухів для Android Emulator.
-
-Емулятор не вміє ходити чи бігати, тому скрипт кожні 50 мс (20 Гц) задає значення
-акселерометра через консоль емулятора (команда `sensor set acceleration x:y:z`).
-Патерни беруться з того самого генератора, на якому навчалась модель (ml_training/motion_patterns.py).
-
-Використання (Windows, у папці Lab6_AutoRotateManager, емулятор запущено):
-    python tools/emulator_motion.py demo          # по 8 с: спокій → ходьба → біг → ходьба → аномалія → спокій
-    python tools/emulator_motion.py walk          # лише ходьба (Ctrl+C — зупинити)
-    python tools/emulator_motion.py run --seconds 15
-    python tools/emulator_motion.py shake         # аномалія: тряска
-    python tools/emulator_motion.py impact        # аномалія: удари
-    python tools/emulator_motion.py still
-Параметри: --port 5554 (номер емулятора з заголовка вікна), --pose portrait|flat.
-Потрібен лише Python 3 + numpy (pip install numpy).
-"""
 import argparse
 import os
 import socket
@@ -39,7 +22,7 @@ POSES = {"portrait": np.array([0.0, 0.98, 0.2]), "flat": np.array([0.0, 0.05, 1.
 
 
 class EmulatorConsole:
-    """Мінімальний клієнт консолі емулятора (telnet localhost:5554)."""
+    """Minimal emulator console client (telnet localhost:5554)."""
 
     def __init__(self, port):
         self.sock = socket.create_connection(("127.0.0.1", port), timeout=3)
@@ -82,7 +65,7 @@ class EmulatorConsole:
 def samples(mode, seconds, rng, g_dir):
     label, params = MODES[mode]
     n = int(seconds * RATE)
-    if mode == "impact":                       # удари — по одному на кожну секунду
+    if mode == "impact":                       # one impact per second
         chunks = [generate(label, int(RATE), rng, rate_hz=RATE, g_dir=g_dir, params=params)
                   for _ in range(int(np.ceil(seconds)))]
         return np.vstack(chunks)[:n]
@@ -90,7 +73,7 @@ def samples(mode, seconds, rng, g_dir):
 
 
 def play(console, data, title):
-    print(f"→ {title}: {len(data)} вимірів ({len(data) / RATE:.0f} с)")
+    print(f"→ {title}: {len(data)} samples ({len(data) / RATE:.0f} s)")
     t_next = time.perf_counter()
     for v in data:
         console.set_accel(v)
@@ -101,7 +84,7 @@ def play(console, data, title):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Програвач рухів акселерометра для Android Emulator")
+    ap = argparse.ArgumentParser(description="Accelerometer motion player for the Android Emulator")
     ap.add_argument("mode", choices=list(MODES) + ["demo"])
     ap.add_argument("--seconds", type=float, default=30)
     ap.add_argument("--port", type=int, default=5554)
@@ -113,8 +96,8 @@ def main():
     try:
         console = EmulatorConsole(args.port)
     except OSError as e:
-        sys.exit(f"Не вдалося підключитися до емулятора на порту {args.port}: {e}\n"
-                 f"Перевірте, що емулятор запущено (порт видно в заголовку вікна, напр. 'emulator-5554').")
+        sys.exit(f"Could not connect to the emulator on port {args.port}: {e}\n"
+                 f"Make sure the emulator is running (the port is in the window title, e.g. 'emulator-5554').")
     try:
         if args.mode == "demo":
             for mode, sec in DEMO:
@@ -122,12 +105,12 @@ def main():
         else:
             play(console, samples(args.mode, args.seconds, rng, g_dir), args.mode)
     except KeyboardInterrupt:
-        print("\nЗупинено")
+        print("\nStopped")
     finally:
-        rest = g_dir * G                       # повертаємо телефон у спокійну позу
+        rest = g_dir * G                       # return the device to rest
         console.set_accel(rest)
         console.close()
-        print("Акселерометр повернуто в стан спокою")
+        print("Accelerometer reset to rest")
 
 
 if __name__ == "__main__":

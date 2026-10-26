@@ -1,6 +1,6 @@
 package com.example.lab6_autorotatemanager.cloud
 
-/** Статус хмарної синхронізації (колір індикатора визначається в UI). */
+/** Cloud sync status (indicator color is chosen in the UI). */
 enum class SyncStatus(val label: String) {
     DISABLED("Вимкнено"),
     IDLE("Очікування даних"),
@@ -10,7 +10,7 @@ enum class SyncStatus(val label: String) {
     ERROR("Помилка запиту")
 }
 
-// State — усе, що показує картка «Хмарна синхронізація» (ЛР №3).
+// State: the cloud sync card.
 data class CloudState(
     val enabled: Boolean = true,
     val configured: Boolean = true,
@@ -26,17 +26,17 @@ data class CloudState(
     val recent: List<String> = emptyList()
 )
 
-// Action — дії користувача на картці та події життєвого циклу Activity.
+// Action: user intents and Activity lifecycle events.
 sealed interface CloudAction {
-    /** onStart Activity: стежимо за мережею. */
+    /** onStart: start watching the network. */
     data object Start : CloudAction
-    /** onStop Activity (окрім повороту екрана): знімаємо NetworkCallback. */
+    /** onStop (not on rotation): stop watching the network. */
     data object Stop : CloudAction
     data class SetEnabled(val enabled: Boolean) : CloudAction
     data object SendNow : CloudAction
 }
 
-// Event — разові повідомлення (Toast).
+// Event: one-off messages (Toast).
 sealed interface CloudEvent {
     data class ShowMessage(val text: String) : CloudEvent
 }

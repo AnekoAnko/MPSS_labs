@@ -46,7 +46,7 @@ import com.example.lab7_autorotatemanager.repository.Metric
 
 private val ActiveRed = Color(0xFFC62828)
 
-/** ЛР №7: вкладка «Сценарії» — малює State, надсилає Action, показує Event. */
+/** Scenarios tab: renders state, sends actions, shows events. */
 @Composable
 fun ScenarioScreen(vm: ScenarioViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -71,7 +71,6 @@ fun ScenarioContent(s: ScenarioState, onAction: (ScenarioAction) -> Unit) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // ---------------------------------------------------------------- загальні налаштування
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -98,7 +97,6 @@ fun ScenarioContent(s: ScenarioState, onAction: (ScenarioAction) -> Unit) {
             }
         }
 
-        // ---------------------------------------------------------------- список правил
         Text("Правила", fontWeight = FontWeight.Bold)
         if (s.rules.isEmpty()) Text("Правил ще немає", style = small)
         s.rules.forEach { item ->
@@ -121,7 +119,6 @@ fun ScenarioContent(s: ScenarioState, onAction: (ScenarioAction) -> Unit) {
             }
         }
 
-        // ---------------------------------------------------------------- нове правило
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Нове правило", fontWeight = FontWeight.Bold)
@@ -159,7 +156,6 @@ fun ScenarioContent(s: ScenarioState, onAction: (ScenarioAction) -> Unit) {
             }
         }
 
-        // ---------------------------------------------------------------- журнал
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp)) {
                 Text("Журнал", fontWeight = FontWeight.Bold)
@@ -170,7 +166,7 @@ fun ScenarioContent(s: ScenarioState, onAction: (ScenarioAction) -> Unit) {
     }
 }
 
-/** Кнопка з випадним списком (DropdownMenu). */
+/** Button with a dropdown menu. */
 @Composable
 private fun Picker(current: String, options: List<String>, onSelect: (Int) -> Unit) {
     var open by remember { mutableStateOf(false) }

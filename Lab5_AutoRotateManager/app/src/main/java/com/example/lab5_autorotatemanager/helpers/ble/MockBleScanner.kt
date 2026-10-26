@@ -6,10 +6,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
 import kotlin.random.Random
 
-/**
- * Імітація BluetoothLeScanner: через 2 секунди «знаходить» віртуальний AR-Hub,
- * трохи згодом — сторонній маяк, який не підтримує підключення.
- */
+/** Simulated BluetoothLeScanner: finds the AR-Hub after 2 s, then a non-connectable beacon. */
 class MockBleScanner(
     private val logger: BleLogger,
     private val discoveryDelayMs: Long = 2_000
@@ -44,7 +41,7 @@ class MockBleScanner(
 
         delay((durationMs - discoveryDelayMs - 700).coerceAtLeast(0))
     }.onCompletion { cause ->
-        // onCompletion спрацьовує і при таймауті, і при скасуванні корутини
+        // runs on both timeout and cancellation
         val reason = if (cause == null) "таймаут сканування" else "зупинено"
         logger.log(LogType.INFO, "stopScan(): $reason")
     }

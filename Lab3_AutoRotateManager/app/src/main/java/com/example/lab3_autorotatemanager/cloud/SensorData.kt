@@ -1,26 +1,22 @@
 package com.example.lab3_autorotatemanager.cloud
 
-/**
- * Модель даних, яка передається в хмару у форматі JSON.
- * Поєднує поля з методички: SensorData (deviceId, timestamp, value, type)
- * і SensorPayload (sensorType, x, y, z, timestamp).
- */
+/** Sample payload sent to the cloud as JSON. */
 data class SensorData(
-    /** Ідентифікатор пристрою (розумного датчика). */
+    /** Device id. */
     val deviceId: String,
-    /** Тип сенсора: ACCELEROMETER. */
+    /** Sensor type: ACCELEROMETER. */
     val type: String,
-    /** Проєкції прискорення на осі, м/с². */
+    /** Acceleration per axis, m/s². */
     val x: Float,
     val y: Float,
     val z: Float,
-    /** Узагальнене значення: модуль вектора прискорення |a|, м/с². */
+    /** Magnitude |a|, m/s². */
     val value: Float,
-    /** Стан Auto-Rotate Manager з ЛР №1 (PORTRAIT, FLAT, …). */
+    /** Device orientation (PORTRAIT, FLAT, …). */
     val orientation: String,
-    /** Час вимірювання, мс з 01.01.1970 (Unix epoch). */
+    /** Sample time, epoch ms. */
     val timestamp: Long = System.currentTimeMillis()
 )
 
-/** Відповідь Firebase Realtime Database на POST: ключ створеного запису. */
+/** Firebase reply to POST: key of the created record. */
 data class PushResponse(val name: String?)

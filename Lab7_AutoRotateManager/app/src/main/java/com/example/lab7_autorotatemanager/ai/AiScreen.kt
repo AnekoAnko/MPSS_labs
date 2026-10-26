@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-/** Колір класу для тексту і смуг ймовірностей. */
+/** Color used for the class label and probability bar. */
 private fun ActivityClass.color(): Color = when (this) {
     ActivityClass.STILL -> Color(0xFF546E7A)
     ActivityClass.WALKING -> Color(0xFF2E7D32)
@@ -34,7 +34,7 @@ private fun ActivityClass.color(): Color = when (this) {
     ActivityClass.ANOMALY -> Color(0xFFC62828)
 }
 
-/** ЛР №6: блок «AI Insights» на вкладці «Сенсор»: малює State, надсилає Action, показує Event. */
+/** AI Insights card: renders state, sends actions, shows events. */
 @Composable
 fun AiScreen(vm: AiViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -51,7 +51,7 @@ fun AiScreen(vm: AiViewModel) {
     AiContent(state = state, onAction = vm::onAction)
 }
 
-/** Прогноз моделі в реальному часі: клас, ймовірності, час inference. */
+/** Live prediction: class, probabilities, inference time. */
 @Composable
 fun AiContent(state: AiState, onAction: (AiAction) -> Unit) {
     val prediction = state.prediction
@@ -88,7 +88,7 @@ fun AiContent(state: AiState, onAction: (AiAction) -> Unit) {
                 }
             }
 
-            // Ймовірності всіх класів (вихідний тензор [1, 4])
+            // Probability bar for every class
             ActivityClass.entries.forEach { cls ->
                 val p = prediction?.probabilities?.getOrNull(cls.ordinal) ?: 0f
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -106,7 +106,7 @@ fun AiContent(state: AiState, onAction: (AiAction) -> Unit) {
                 }
             }
 
-            // Наслідки прогнозу (інтеграція з ЛР №4 і ЛР №5)
+            // Side effects of the confirmed class
             when (state.stable) {
                 ActivityClass.RUNNING -> Text("→ ЛР №5: запис у БД прискорено", color = ActivityClass.RUNNING.color(), style = small)
                 ActivityClass.ANOMALY -> Text("→ ЛР №4: сирена + прожектор", color = ActivityClass.ANOMALY.color(), style = small)

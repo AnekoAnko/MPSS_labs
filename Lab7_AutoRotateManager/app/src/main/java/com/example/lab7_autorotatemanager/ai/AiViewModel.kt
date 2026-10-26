@@ -24,16 +24,11 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * ЛР №6: ViewModel локального ML (On-device AI).
+ * On-device activity recognition.
  *
- *   SensorHub.raw (СИРІ x, y, z, 20 Гц)
- *     → SensorWindowBuffer (кільцевий буфер, 20 вимірів ≈ 1 с)
- *       → кожні 5 вимірів: знімок вікна → Dispatchers.Default → помічник ActivityClassifier (TFLite)
- *         → Prediction (ймовірності 4 класів) → PredictionSmoother → stable
- *           → State для UI і SystemStateRepository.aiActivity для ЛР №4/№5
- *
- * Inference — CPU-інтенсивна операція, тому вона виконується в Dispatchers.Default.
- * Якщо попередній прогноз ще рахується, нове вікно пропускається (backpressure).
+ * raw samples → SensorWindowBuffer (20 samples ≈ 1 s) → every 5 samples run the model
+ * on Dispatchers.Default → PredictionSmoother → confirmed class → SystemStateRepository.
+ * If a previous inference is still running the new window is skipped (backpressure).
  */
 class AiViewModel(
     private val classifierFactory: () -> IActivityClassifier,
@@ -58,7 +53,7 @@ class AiViewModel(
     val events = _events.receiveAsFlow()
 
     init {
-        // Завантаження моделі (читання файлу, ініціалізація інтерпретатора) — не в UI-потоці
+        // Load the model off the main thread
         viewModelScope.launch {
             try {
                 val c = withContext(inferenceDispatcher) { classifierFactory() }
@@ -73,13 +68,13 @@ class AiViewModel(
             }
         }
 
-        // СИРІ значення (без фільтра ЛР №1: він прибрав би саме ту динаміку, за якою модель розпізнає рух)
+        // Raw values: the low-pass filter would remove the motion the model relies on
         viewModelScope.launch {
             hub.raw.collect { s -> onRawSample(s.x, s.y, s.z, s.timestampNs) }
         }
     }
 
-    // ЄДИНИЙ вхід для дій користувача
+    // Single entry point for UI actions
     fun onAction(action: AiAction) {
         when (action) {
             is AiAction.SetEnabled -> setEnabled(action.enabled)
@@ -92,12 +87,12 @@ class AiViewModel(
         if (_state.value.bufferFill != buffer.size) _state.update { it.copy(bufferFill = buffer.size) }
         if (!ready) return
 
-        val model = classifier ?: return               // модель ще завантажується
-        if (!busy.compareAndSet(false, true)) {        // попередній inference ще триває
+        val model = classifier ?: return               // model is still loading
+        if (!busy.compareAndSet(false, true)) {        // previous inference still running
             _state.update { it.copy(skippedWindows = it.skippedWindows + 1) }
             return
         }
-        val window = buffer.toModelInput()             // знімок вікна
+        val window = buffer.toModelInput()             // snapshot of the window
 
         viewModelScope.launch {
             try {
@@ -139,11 +134,11 @@ class AiViewModel(
                 }
             )
         }
-        // ЛР №7: віджет поточного стану на Dashboard
+
         system.setAi(AiSnapshot(enabled = true, stable = smoother.stable, current = prediction.best, confidence = prediction.confidence))
         if (changed != null) {
             Log.i(TAG, "Стабільна активність: ${changed.name} (${prediction.format()})")
-            system.setAiActivity(changed)   // → ЛР №4 (Аномалія → актуатори), ЛР №5 (Біг → прискорений запис)
+            system.setAiActivity(changed)   // drives actuators (anomaly) and fast recording (running)
         }
     }
 
@@ -152,7 +147,7 @@ class AiViewModel(
         if (!enabled) {
             buffer.clear()
             smoother.reset()
-            system.setAiActivity(ActivityClass.STILL)      // вимикаємо «наслідки» ML
+            system.setAiActivity(ActivityClass.STILL)      // reset ML side effects
             _state.update { it.copy(bufferFill = 0, prediction = null, stable = ActivityClass.STILL) }
         }
         system.setAi(AiSnapshot(enabled = enabled))

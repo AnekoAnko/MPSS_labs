@@ -24,10 +24,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/**
- * ЛР №2: ViewModel вкладки «BLE-хаб». Працює з Bluetooth лише через помічники
- * (IBleScanner, IBleConnector — Mock-реалізація віртуального AR-Hub-46).
- */
+/** BLE hub tab. Talks to Bluetooth only through IBleScanner / IBleConnector (mock AR-Hub-46). */
 class BleViewModel(
     private val environment: BluetoothEnvironment = BluetoothEnvironment(AppGraph.app),
     private val system: SystemStateRepository = AppGraph.systemState
@@ -48,10 +45,10 @@ class BleViewModel(
     private var connectJob: Job? = null
 
     init {
-        // Журнал обміну → State
+        // Log → state
         viewModelScope.launch { logger.entries.collect { log -> _state.update { it.copy(log = log) } } }
 
-        // Стан з'єднання з шару Bluetooth → State
+        // Connection state → state
         viewModelScope.launch {
             connector.connectionState.collect { cs ->
                 _state.update {
@@ -63,11 +60,11 @@ class BleViewModel(
                 }
             }
         }
-        // Notify від пристрою → останній статус
+        // Notify from the device → last status
         viewModelScope.launch {
             connector.notifications.collect { n -> _state.update { it.copy(lastStatus = n.value) } }
         }
-        // ЛР №1 → ЛР №2: нова орієнтація пристрою → характеристика ORIENTATION на хабі
+        // Orientation change → ORIENTATION characteristic
         viewModelScope.launch {
             system.orientation.drop(1).collect { orientation ->
                 if (_state.value.connectionState.isLinkUp) {
@@ -77,7 +74,7 @@ class BleViewModel(
         }
     }
 
-    // ЄДИНИЙ вхід у ViewModel
+    // Single entry point for UI actions
     fun onAction(action: BleAction) {
         when (action) {
             BleAction.ScanClick -> _events.trySend(BleEvent.RequestPermissions(BluetoothEnvironment.REQUIRED_PERMISSIONS))
@@ -99,7 +96,7 @@ class BleViewModel(
             "BluetoothAdapter: ${if (adapter) "є" else "відсутній"}; " +
                 "дозволи: ${if (granted) "надано" else "не надано"}; режим: Mock (IBleConnector → MockBleConnector)"
         )
-        // Mock-шар не використовує радіомодуль, тому сканування імітуємо навіть без дозволів
+        // The mock layer has no radio, so scanning works without permissions
         startScan()
     }
 
@@ -122,7 +119,7 @@ class BleViewModel(
 
     private fun connect(device: BleDevice) {
         if (_state.value.connectionState != BleConnectionState.DISCONNECTED) return
-        scanJob?.cancel() // сканування під час підключення знижує стабільність з'єднання
+        scanJob?.cancel() // scanning while connecting hurts stability
         _state.update { it.copy(connectedDevice = device) }
         connectJob = viewModelScope.launch {
             if (connector.connect(device)) {

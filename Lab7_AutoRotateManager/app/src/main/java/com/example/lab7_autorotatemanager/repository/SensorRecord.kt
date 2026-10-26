@@ -6,41 +6,35 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * ЛР №5: Entity — один рядок таблиці sensor_records у локальній базі SQLite.
- * Створюється лише з SensorReading.toRecord() у репозиторії.
- *
- * sensorValue — кут нахилу пристрою від вертикалі (0..180°), який рахує
- * DecisionEngine з ЛР №4 за відфільтрованими даними акселерометра (ЛР №1).
- * actionTriggered — true, якщо в момент запису автоматика ЛР №4 увімкнула
- * виконавчі пристрої (тривога: сирена + прожектор).
- * synced — чи запис уже відправлено в хмару; false → його відправить syncPending().
+ * One row of sensor_records. Created only via SensorReading.toRecord().
+ * sensorValue = tilt (0..180°), actionTriggered = alarm fired, synced = already uploaded.
  */
 @Entity(
     tableName = "sensor_records",
     indices = [Index(value = ["timestamp"]), Index(value = ["synced"])]
 )
 data class SensorRecord(
-    /** Первинний ключ; 0 означає «згенерувати автоматично» (AUTOINCREMENT). */
+    /** Primary key; 0 means auto-generate. */
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
 
-    /** Час вимірювання, мс від 01.01.1970 (Unix epoch). */
+    /** Sample time, epoch ms. */
     @ColumnInfo(name = "timestamp")
     val timestamp: Long,
 
-    /** Значення сенсора: кут нахилу від вертикалі, градуси. */
+    /** Sensor value: tilt from vertical, degrees. */
     @ColumnInfo(name = "sensor_value")
     val sensorValue: Float,
 
-    /** Чи спрацювала в цей момент система безпеки (актуатори ЛР №4). */
+    /** Whether the alarm fired at this moment. */
     @ColumnInfo(name = "action_triggered")
     val actionTriggered: Boolean,
 
-    /** Додатково: стан Auto-Rotate Manager з ЛР №1 (PORTRAIT, FLAT, …). */
+    /** Device orientation (PORTRAIT, FLAT, …). */
     @ColumnInfo(name = "orientation")
     val orientation: String,
 
-    /** Сирі осі акселерометра, м/с² — щоб пізніше відправити запис у хмару повністю. */
+    /** Raw axes, m/s², kept so the record can be uploaded later. */
     @ColumnInfo(name = "x")
     val x: Float = 0f,
     @ColumnInfo(name = "y")
@@ -48,11 +42,11 @@ data class SensorRecord(
     @ColumnInfo(name = "z")
     val z: Float = 0f,
 
-    /** ЛР №7: стан з ML-моделі в момент запису (STILL, WALKING, RUNNING, ANOMALY). */
+    /** ML state at the time of the record. */
     @ColumnInfo(name = "activity")
     val activity: String = "STILL",
 
-    /** Чи відправлено запис у хмару (false → статус Pending). */
+    /** Whether the record was uploaded (false = pending). */
     @ColumnInfo(name = "synced")
     val synced: Boolean = false
 )

@@ -3,33 +3,28 @@ package com.example.lab4_autorotatemanager.repository
 import kotlin.math.sqrt
 
 /**
- * Модель, з якою працюють ViewModel і State: один вимір, який треба зберегти й відправити.
- *
- * Окремі моделі даних — і це нормально (методичка «Архітектура додатку: MVI»; у ЛР №5 додасться SensorRecord для Room):
- *  • SensorReading — те, з чим працює ViewModel (цей файл);
- *  • SensorPayload — як дані виглядають у JSON для хмари (CloudApi.kt).
- * Перетворення між ними — коротка функція toPayload() поруч із моделлю,
- * тому зміна формату JSON не зачіпає ViewModel і екран.
+ * One sample as used by ViewModels and state.
+ * SensorPayload (cloud JSON) is a separate model; toPayload() converts between them.
  */
 data class SensorReading(
-    /** Відфільтровані значення акселерометра, м/с². */
+    /** Filtered accelerometer values, m/s². */
     val x: Float,
     val y: Float,
     val z: Float,
-    /** Кут нахилу пристрою від вертикалі, градуси (DecisionEngine.tiltDegrees). */
+    /** Tilt from vertical, degrees. */
     val tilt: Float,
-    /** Стан Auto-Rotate Manager з ЛР №1 (PORTRAIT, FLAT, …). */
+    /** Device orientation (PORTRAIT, FLAT, …). */
     val orientation: String,
-    /** Чи спрацювала в цей момент система безпеки (актуатори ЛР №4). */
+    /** Whether the alarm fired at this moment. */
     val actionTriggered: Boolean = false,
-    /** Час вимірювання, мс з 01.01.1970 (Unix epoch). */
+    /** Sample time, epoch ms. */
     val timestamp: Long = System.currentTimeMillis()
 ) {
-    /** Модуль вектора прискорення |a|, м/с². */
+    /** Magnitude |a|, m/s². */
     val magnitude: Float get() = sqrt(x * x + y * y + z * z)
 }
 
-/** SensorReading → JSON для хмари (Firebase Realtime Database). */
+/** SensorReading → cloud JSON. */
 fun SensorReading.toPayload(deviceId: String) = SensorPayload(
     deviceId = deviceId,
     type = SensorPayload.TYPE_ACCELEROMETER,

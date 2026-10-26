@@ -1,12 +1,8 @@
 package com.example.lab6_autorotatemanager.ai
 
 /**
- * ЛР №6: згладжування прогнозів перед тим, як за ними щось вмикати.
- *
- * Окремий прогноз може «смикнутися» — наприклад, на межі Ходьба→Біг у вікні змішано
- * обидва патерни. Тому дії (прискорений запис у БД, актуатори) запускаються лише тоді,
- * коли той самий клас із впевненістю ≥ [minConfidence] прийшов [confirmations] рази поспіль.
- * Це той самий принцип гістерезису, що й у ЛР №1 (400 мс) та ЛР №4 (витримка holdMs).
+ * Confirms a class only after [confirmations] consecutive predictions with confidence ≥ [minConfidence].
+ * Filters out single noisy predictions, e.g. at the walking/running boundary.
  */
 class PredictionSmoother(
     val minConfidence: Float = MIN_CONFIDENCE,
@@ -15,11 +11,11 @@ class PredictionSmoother(
     private var candidate: ActivityClass? = null
     private var streak = 0
 
-    /** Підтверджений (стабільний) клас; на старті — STILL. */
+    /** Confirmed class; STILL at start. */
     var stable: ActivityClass = ActivityClass.STILL
         private set
 
-    /** Повертає новий стабільний клас, якщо він щойно змінився, інакше null. */
+    /** Returns the new confirmed class if it just changed, otherwise null. */
     fun update(prediction: Prediction): ActivityClass? {
         val best = prediction.best
         if (prediction.confidence < minConfidence) {

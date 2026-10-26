@@ -5,27 +5,23 @@ import com.example.lab7_autorotatemanager.repository.ScenarioRule
 import kotlin.math.abs
 import kotlin.math.max
 
-/** Правило ввімкнулося (active = true) або вимкнулося (false). */
+/** A rule turned on (active = true) or off. */
 data class ScenarioTransition(val rule: ScenarioRule, val active: Boolean, val value: Float)
 
 /**
- * ЛР №7: двигун Smart-сценаріїв «IF умова THEN дія».
- *
- * Захист від хибних спрацювань (крім медіанного фільтра перед ним):
- *  • витримка holdMs — умова має триматися безперервно, одиночний вимір нічого не вмикає;
- *  • гістерезис — правило вимикається, лише коли значення відійде від порога на 5 % (мінімум 0,2);
- *  • затримка вимкнення [releaseMs] — коливання навколо порога (тряска) не «блимають» актуатором.
- * Клас не залежить від Android, час передається параметром — його легко перевірити тестом.
+ * Rule engine "IF condition THEN action". Protection against false triggers:
+ * hold time (condition must last holdMs), hysteresis (5 %, min 0.2)
+ * and a release delay ([releaseMs]) so oscillation near the threshold doesn't toggle actuators.
  */
 class ScenarioEngine(
     private val releaseMs: Long = DEFAULT_RELEASE_MS,
     private val hysteresisRatio: Float = HYSTERESIS_RATIO
 ) {
-    /** id правила → момент, з якого умова виконується (ще не спрацювало). */
+    /** rule id → since when the condition holds (not fired yet). */
     private val pendingSince = HashMap<Long, Long>()
-    /** id правила → момент, з якого умова вже не виконується (правило ще активне). */
+    /** rule id → since when the condition stopped holding (still active). */
     private val releaseSince = HashMap<Long, Long>()
-    /** Активні правила (спрацювали і ще не вимкнулися). */
+    /** Active rules. */
     private val active = HashMap<Long, ScenarioRule>()
 
     val activeIds: Set<Long> get() = active.keys
@@ -34,7 +30,7 @@ class ScenarioEngine(
         val out = ArrayList<ScenarioTransition>()
         val enabled = rules.filter { it.enabled }
 
-        // Правило видалили або вимкнули, поки воно було активне → знімаємо його дію
+        // Rule removed or disabled while active: release its action
         val ids = enabled.mapTo(HashSet()) { it.id }
         for (id in active.keys.filter { it !in ids }) {
             out += ScenarioTransition(active.remove(id)!!, active = false, value = Float.NaN)
@@ -53,7 +49,7 @@ class ScenarioEngine(
                         out += ScenarioTransition(rule, active = true, value = value)
                     }
                 } else {
-                    pendingSince.remove(rule.id)   // викид не протримався holdMs — скидаємо
+                    pendingSince.remove(rule.id)   // spike didn't last holdMs: reset
                 }
             } else {
                 if (isReleased(rule, value)) {
@@ -65,14 +61,14 @@ class ScenarioEngine(
                     }
                 } else {
                     releaseSince.remove(rule.id)
-                    active[rule.id] = rule   // правило могли відредагувати
+                    active[rule.id] = rule   // the rule may have been edited
                 }
             }
         }
         return out
     }
 
-    /** Зняти всі активні правила (наприклад, сценарії вимкнули перемикачем). */
+    /** Releases all active rules (e.g. scenarios switched off). */
     fun releaseAll(): List<ScenarioTransition> {
         val out = active.values.map { ScenarioTransition(it, active = false, value = Float.NaN) }
         active.clear(); pendingSince.clear(); releaseSince.clear()

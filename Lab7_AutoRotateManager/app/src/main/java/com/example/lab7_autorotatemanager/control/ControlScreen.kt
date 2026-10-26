@@ -44,7 +44,7 @@ private val Red = Color(0xFFC62828)
 private val Amber = Color(0xFFF9A825)
 private val Grey = Color(0xFF9E9E9E)
 
-/** Вкладка «Керування»: малює State, надсилає Action, показує Event. */
+/** Control tab: renders state, sends actions, shows events. */
 @Composable
 fun ControlScreen(vm: ControlViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -61,7 +61,7 @@ fun ControlScreen(vm: ControlViewModel) {
     ControlContent(s = state, onAction = vm::onAction)
 }
 
-/** DecisionEngine, віртуальна лампа, Manual Control, Cloud-to-Device, журнал. */
+/** DecisionEngine, virtual lamp, manual control, cloud commands, log. */
 @Composable
 fun ControlContent(s: ControlState, onAction: (ControlAction) -> Unit) {
 
@@ -72,7 +72,7 @@ fun ControlContent(s: ControlState, onAction: (ControlAction) -> Unit) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Банер тривоги
+        // Alarm banner
         if (s.alarmActive) {
             Card(colors = CardDefaults.cardColors(containerColor = Red), modifier = Modifier.fillMaxWidth()) {
                 Text(
@@ -83,7 +83,7 @@ fun ControlContent(s: ControlState, onAction: (ControlAction) -> Unit) {
             }
         }
 
-        // ЛР №6: тривога за прогнозом ML-моделі
+        // AI alarm banner
         if (s.aiAlarm) {
             Card(colors = CardDefaults.cardColors(containerColor = Red), modifier = Modifier.fillMaxWidth()) {
                 Text(
@@ -94,7 +94,6 @@ fun ControlContent(s: ControlState, onAction: (ControlAction) -> Unit) {
             }
         }
 
-        // ---------------------------------------------------------------- DecisionEngine
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -123,7 +122,6 @@ fun ControlContent(s: ControlState, onAction: (ControlAction) -> Unit) {
             }
         }
 
-        // ---------------------------------------------------------------- Віртуальна лампа
         Card(Modifier.fillMaxWidth()) {
             Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 val lampColor by animateColorAsState(if (s.lamp.on) Color(0xFFFFD54F) else Color(0xFF424242), label = "lamp")
@@ -144,7 +142,6 @@ fun ControlContent(s: ControlState, onAction: (ControlAction) -> Unit) {
             }
         }
 
-        // ---------------------------------------------------------------- Manual Control
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Manual Control", fontWeight = FontWeight.Bold)
@@ -172,7 +169,6 @@ fun ControlContent(s: ControlState, onAction: (ControlAction) -> Unit) {
             }
         }
 
-        // ---------------------------------------------------------------- Cloud-to-Device
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 val color = when (s.remoteConnection) {
@@ -197,7 +193,6 @@ fun ControlContent(s: ControlState, onAction: (ControlAction) -> Unit) {
             }
         }
 
-        // ---------------------------------------------------------------- Журнал
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp)) {
                 Text("Журнал подій (Logcat: Control)", fontWeight = FontWeight.Bold)

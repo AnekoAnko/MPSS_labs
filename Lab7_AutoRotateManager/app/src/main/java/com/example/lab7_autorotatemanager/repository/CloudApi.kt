@@ -13,18 +13,18 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
 
-/** REST API Firebase Realtime Database (Retrofit). */
+/** Firebase Realtime Database REST API (Retrofit). */
 interface CloudApi {
 
-    /** ЛР №3: POST додає новий дочірній запис з унікальним ключем і повертає {"name": "<ключ>"}. */
+    /** POST adds a child with a generated key and returns {"name": "<key>"}. */
     @POST("sensor_data/{deviceId}.json")
     suspend fun push(
         @Path("deviceId") deviceId: String,
         @Body data: SensorPayload,
-        @Query("auth") auth: String? = null   // null → параметр не додається до URL
+        @Query("auth") auth: String? = null   // null → parameter is omitted
     ): Response<PushResponse>
 
-    /** ЛР №4: PUT замінює вузол status/{deviceId} цілком — фактичний стан актуаторів. */
+    /** PUT replaces status/{deviceId} with the actual actuator state. */
     @PUT("status/{deviceId}.json")
     suspend fun putStatus(
         @Path("deviceId") deviceId: String,
@@ -33,30 +33,27 @@ interface CloudApi {
     ): Response<ActuatorReport>
 }
 
-/**
- * Як один вимір виглядає у JSON для хмари (гілка sensor_data/{deviceId}).
- * Створюється лише з SensorReading.toPayload() — ViewModel цю модель не бачить.
- */
+/** JSON shape of one sample in sensor_data/{deviceId}. Built only via SensorReading.toPayload(). */
 data class SensorPayload(
-    /** Ідентифікатор пристрою (розумного датчика). */
+    /** Device id. */
     val deviceId: String,
-    /** Тип сенсора: ACCELEROMETER. */
+    /** Sensor type: ACCELEROMETER. */
     val type: String,
-    /** Проєкції прискорення на осі, м/с². */
+    /** Acceleration per axis, m/s². */
     val x: Float,
     val y: Float,
     val z: Float,
-    /** Узагальнене значення: модуль вектора прискорення |a|, м/с². */
+    /** Magnitude |a|, m/s². */
     val value: Float,
-    /** Кут нахилу від вертикалі, градуси. */
+    /** Tilt from vertical, degrees. */
     val tilt: Float,
-    /** Стан Auto-Rotate Manager з ЛР №1 (PORTRAIT, FLAT, …). */
+    /** Device orientation (PORTRAIT, FLAT, …). */
     val orientation: String,
-    /** Чи спрацювала система безпеки (ЛР №4). */
+    /** Whether the alarm fired at this moment. */
     val actionTriggered: Boolean,
-    /** ЛР №7: стан з ML-моделі (STILL, WALKING, RUNNING, ANOMALY). */
+    /** Confirmed ML state (STILL, WALKING, RUNNING, ANOMALY). */
     val activity: String,
-    /** Час вимірювання, мс з 01.01.1970 (Unix epoch). */
+    /** Sample time, epoch ms. */
     val timestamp: Long
 ) {
     companion object {
@@ -64,13 +61,10 @@ data class SensorPayload(
     }
 }
 
-/** Відповідь Firebase Realtime Database на POST: ключ створеного запису. */
+/** Firebase reply to POST: key of the created record. */
 data class PushResponse(val name: String?)
 
-/**
- * ЛР №4 — зворотний зв'язок: фактичний стан актуаторів, який додаток записує в status/{deviceId}.
- * Так у консолі Firebase видно, що команда з control/ дійсно виконана.
- */
+/** Actual actuator state written to status/{deviceId}, so the console shows that a command was executed. */
 data class ActuatorReport(
     val flashlight: Boolean,
     val flashlightHardware: Boolean,
@@ -80,23 +74,23 @@ data class ActuatorReport(
     val tilt: Float,
     val threshold: Float,
     val lastSource: String,
-    /** ЛР №7: підтверджений стан ML-моделі та прапорець критичного стану. */
+    /** Confirmed ML state and critical flag. */
     val activity: String = "STILL",
     val critical: Boolean = false,
     val timestamp: Long = System.currentTimeMillis()
 )
 
-/** Створення Retrofit-клієнта. */
+/** Builds the Retrofit client. */
 object CloudModule {
 
     const val HTTP_TAG = "CloudSync-HTTP"
 
-    /** Повертає null, якщо адресу бази не задано в local.properties. */
+    /** Returns null if the database URL is not set in local.properties. */
     fun createApi(baseUrl: String): CloudApi? {
         if (baseUrl.isBlank()) return null
         val url = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
 
-        // Логи Retrofit/OkHttp: метод, URL, тіло JSON, код відповіді (Logcat, тег CloudSync-HTTP)
+        // HTTP logs: method, URL, JSON body, status (Logcat tag CloudSync-HTTP)
         val logging = HttpLoggingInterceptor { message -> Log.d(HTTP_TAG, message) }.apply {
             level = HttpLoggingInterceptor.Level.BODY
         }

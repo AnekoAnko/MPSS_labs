@@ -1,16 +1,16 @@
 package com.example.lab5_autorotatemanager.helpers
 
-/** Гілка Firebase Realtime Database, з якої додаток отримує команди. */
+/** Firebase node the app reads commands from. */
 const val CONTROL_PATH = "control"
 
-/** Спосіб отримання команд із хмари. */
+/** How cloud commands are received. */
 enum class RemoteMode(val label: String) {
     SDK("Firebase SDK · ValueEventListener"),
     SSE("REST Streaming (SSE) · OkHttp"),
     NONE("не налаштовано")
 }
 
-/** Стан каналу Cloud-to-Device. */
+/** Cloud-to-device channel state. */
 enum class RemoteConnection(val label: String) {
     DISCONNECTED("відключено"),
     CONNECTING("підключення…"),
@@ -19,12 +19,8 @@ enum class RemoteConnection(val label: String) {
 }
 
 /**
- * Команда Cloud-to-Device — вміст вузла control/ у Firebase:
- *   control/led_status  — віртуальна лампа (true/false, "ON"/"OFF", 1/0)
- *   control/flashlight  — прожектор (необов'язково)
- *   control/siren       — сирена (необов'язково)
- *   control/threshold   — новий поріг DecisionEngine, градуси (необов'язково)
- * null — поля в базі немає, відповідний актуатор не змінюємо.
+ * Contents of control/ in Firebase: led_status (virtual lamp), flashlight, siren, threshold.
+ * null means the field is missing and the actuator is left unchanged.
  */
 data class ControlCommand(
     val ledStatus: Boolean? = null,
@@ -33,7 +29,7 @@ data class ControlCommand(
     val threshold: Float? = null
 )
 
-/** Перетворення «сирих» значень Firebase (Boolean, Number, String, Map) на команду. */
+/** Converts raw Firebase values (Boolean, Number, String, Map) into a command. */
 object CommandParser {
 
     fun fromValue(value: Any?): ControlCommand {
@@ -65,10 +61,8 @@ object CommandParser {
 }
 
 /**
- * Джерело команд із хмари. Дві реалізації:
- *  • FirebaseCommandSource   — Firebase SDK, ValueEventListener (подієве керування);
- *  • RestStreamCommandSource — REST Streaming (Server-Sent Events) через OkHttp.
- * Колбеки можуть приходити з фонового потоку.
+ * Source of cloud commands: FirebaseCommandSource (SDK) or RestStreamCommandSource (SSE).
+ * Callbacks may arrive on a background thread.
  */
 interface RemoteCommandSource {
     val mode: RemoteMode
@@ -82,9 +76,8 @@ interface RemoteCommandSource {
 }
 
 /**
- * Локальна копія піддерева control/ для режиму REST Streaming.
- * Firebase надсилає події put (замінити значення за шляхом) і patch (оновити кілька дочірніх ключів);
- * шлях задається відносно вузла, на який підписалися ("/" — весь вузол, "/led_status" — одне поле).
+ * Local copy of control/ for REST streaming.
+ * Applies put (replace at path) and patch (update child keys) events.
  */
 class SnapshotTree {
 
@@ -112,12 +105,7 @@ class SnapshotTree {
     }
 }
 
-/**
- * Розбір потоку Server-Sent Events рядок за рядком:
- *   event: put
- *   data: {"path":"/","data":{"led_status":true}}
- *   (порожній рядок — кінець події)
- */
+/** Parses a Server-Sent Events stream line by line (event:, data:, blank line ends an event). */
 class SseEventParser(private val onEvent: (event: String, data: String) -> Unit) {
     private var event: String? = null
     private val data = StringBuilder()
@@ -130,7 +118,7 @@ class SseEventParser(private val onEvent: (event: String, data: String) -> Unit)
                 if (data.isNotEmpty()) data.append('\n')
                 data.append(line.substringAfter(':').trim())
             }
-            // рядки-коментарі (":") та невідомі поля ігноруємо
+            // comment lines (":") and unknown fields are ignored
         }
     }
 

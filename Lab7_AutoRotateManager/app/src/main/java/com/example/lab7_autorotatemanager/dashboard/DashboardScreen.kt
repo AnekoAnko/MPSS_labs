@@ -48,7 +48,7 @@ private fun ActivityClass.color(): Color = when (this) {
     ActivityClass.ANOMALY -> Red
 }
 
-/** ЛР №7: головний екран Dashboard — малює State, надсилає Action, показує Event. */
+/** Dashboard: renders state, sends actions, shows events. */
 @Composable
 fun DashboardScreen(vm: DashboardViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -91,7 +91,6 @@ fun DashboardContent(s: DashboardState, onAction: (DashboardAction) -> Unit) {
             }
         }
 
-        // ---------------------------------------------------------------- 1. Віджет стану (ML)
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Поточний стан (TFLite)", fontWeight = FontWeight.Bold)
@@ -110,7 +109,6 @@ fun DashboardContent(s: DashboardState, onAction: (DashboardAction) -> Unit) {
             }
         }
 
-        // ---------------------------------------------------------------- 2. Статуси зв'язку
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatusCard(
                 title = "Хмара (Firebase)",
@@ -138,7 +136,6 @@ fun DashboardContent(s: DashboardState, onAction: (DashboardAction) -> Unit) {
             )
         }
 
-        // ---------------------------------------------------------------- 3. Швидке керування
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp)) {
                 Text("Швидке керування", fontWeight = FontWeight.Bold)
@@ -153,7 +150,6 @@ fun DashboardContent(s: DashboardState, onAction: (DashboardAction) -> Unit) {
             }
         }
 
-        // ---------------------------------------------------------------- 4. Останні 5 записів БД
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Останні записи Room (усього ${s.recordCount})", fontWeight = FontWeight.Bold)

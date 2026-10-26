@@ -11,14 +11,14 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** ЛР №7: Smart-сценарії і захист від хибних спрацювань (JVM, без Android). */
+/** Smart scenarios and false-trigger protection (JVM, no Android). */
 class ScenarioEngineTest {
 
     private val rule = ScenarioRule(
         id = 1, metric = Metric.X, comparison = Comparison.GREATER, threshold = 10f,
         action = ActuatorType.VIBRATION, holdMs = 300
     )
-    private val step = 50L   // 20 Гц
+    private val step = 50L   // 20 Hz
 
     @Test
     fun steadyValueAboveThresholdFiresAfterHold() {
@@ -29,14 +29,14 @@ class ScenarioEngineTest {
             val out = engine.evaluate(listOf(rule), 11f, 9.8f, 1f, t)
             if (out.any { it.active } && firedAt < 0) firedAt = t
         }
-        assertEquals(300L, firedAt)   // рівно через holdMs
+        assertEquals(300L, firedAt)   // exactly after holdMs
     }
 
     @Test
     fun singleSpikeIsIgnoredWithHold() {
         val engine = ScenarioEngine()
         val fired = (0..100).flatMap { i ->
-            val x = if (i % 40 == 20) 15f else 0f   // одиночний викид раз на 2 с
+            val x = if (i % 40 == 20) 15f else 0f   // single spike every 2 s
             engine.evaluate(listOf(rule), x, 9.8f, 1f, i * step)
         }.filter { it.active }
         assertTrue(fired.isEmpty())
@@ -50,7 +50,7 @@ class ScenarioEngineTest {
             val x = if (i % 40 == 20) 15f else 0f
             engine.evaluate(listOf(noHold), x, 9.8f, 1f, i * step)
         }.filter { it.active }
-        assertTrue(fired.isNotEmpty())   // саме це і є «хибне спрацювання»
+        assertTrue(fired.isNotEmpty())   // this is a false trigger
     }
 
     @Test
@@ -66,10 +66,10 @@ class ScenarioEngineTest {
         var t = 0L
         repeat(10) { engine.evaluate(listOf(rule), 11f, 0f, 0f, t); t += step }
         assertTrue(rule.id in engine.activeIds)
-        // 9,8 — нижче порога, але в межах гістерезису (10 − 0,5) → правило лишається активним
+        // below threshold but within hysteresis (10 − 0.5): still active
         repeat(30) { engine.evaluate(listOf(rule), 9.8f, 0f, 0f, t); t += step }
         assertTrue(rule.id in engine.activeIds)
-        // значно нижче порога, але менше 1 с → ще активне
+        // far below threshold but < 1 s: still active
         repeat(10) { engine.evaluate(listOf(rule), 2f, 0f, 0f, t); t += step }
         assertTrue(rule.id in engine.activeIds)
         val out = (0 until 15).flatMap { engine.evaluate(listOf(rule), 2f, 0f, 0f, t).also { t += step } }

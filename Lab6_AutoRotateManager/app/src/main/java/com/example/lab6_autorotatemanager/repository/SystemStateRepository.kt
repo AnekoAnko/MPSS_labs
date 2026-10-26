@@ -6,30 +6,25 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Спільний стан системи, який потрібен кільком екранам.
- * ViewModel не звертаються одна до одної: одна записує значення сюди,
- * інші отримують його як Flow.
- *
- *   MonitorViewModel  → orientation  → CloudViewModel (поле orientation), BleViewModel (ORIENT:…)
- *   AiViewModel       → aiActivity   → ControlViewModel (Аномалія → актуатори), AnalyticsViewModel (Біг → частіший запис)
- *   ControlViewModel  → threshold, alarmActive → AnalyticsViewModel (ЛР №5: поріг на графіку, позначка спрацювання)
+ * Shared state between screens. ViewModels never call each other:
+ * one writes a value here, others observe it as a Flow.
  */
 class SystemStateRepository {
 
     private val _orientation = MutableStateFlow("PORTRAIT")
-    /** Стан Auto-Rotate Manager з ЛР №1 (PORTRAIT, LANDSCAPE_LEFT, …). */
+    /** Device orientation (PORTRAIT, LANDSCAPE_LEFT, …). */
     val orientation: StateFlow<String> = _orientation.asStateFlow()
 
     private val _threshold = MutableStateFlow(DEFAULT_THRESHOLD)
-    /** Поточний поріг DecisionEngine (ЛР №4), градуси. */
+    /** Current DecisionEngine threshold, degrees. */
     val threshold: StateFlow<Float> = _threshold.asStateFlow()
 
     private val _alarmActive = MutableStateFlow(false)
-    /** Чи увімкнені зараз актуатори системи безпеки (ЛР №4). */
+    /** Whether the alarm actuators are on. */
     val alarmActive: StateFlow<Boolean> = _alarmActive.asStateFlow()
 
     private val _aiActivity = MutableStateFlow(ActivityClass.STILL)
-    /** ЛР №6: підтверджена активність за прогнозом TFLite-моделі. */
+    /** Confirmed activity from the ML model. */
     val aiActivity: StateFlow<ActivityClass> = _aiActivity.asStateFlow()
 
     fun setOrientation(value: String) { _orientation.value = value }

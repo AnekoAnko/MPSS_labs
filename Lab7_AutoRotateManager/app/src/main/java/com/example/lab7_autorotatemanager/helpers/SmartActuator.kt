@@ -16,26 +16,26 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
 
-/** Абстракція виконавчих пристроїв: ViewModel не знає, реальне це залізо чи імітація. */
+/** Actuator abstraction: ViewModels don't know if hardware is real or simulated. */
 interface IActuator {
-    /** Є апаратний спалах камери (FEATURE_CAMERA_FLASH + камера з FLASH_INFO_AVAILABLE). */
+    /** Device has a camera flash. */
     val hasFlash: Boolean
-    /** Є вібромотор. */
+    /** Device has a vibrator. */
     val hasVibrator: Boolean
-    /** Виклик, коли стан ліхтарика змінився поза додатком (наприклад, із шторки). */
+    /** Called when the torch changes outside the app (e.g. quick settings). */
     var onTorchChanged: ((Boolean) -> Unit)?
 
-    /** Увімкнути «сирену»: циклічна вібрація + звуковий сигнал. */
+    /** Starts the siren: repeating vibration + alarm tone. */
     fun triggerAlarm()
     fun stopAlarm()
 
-    /** ЛР №7: короткий вібро-імпульс (дія Smart-сценарію «вібрація»). */
+    /** Short vibration pulse (scenario action). */
     fun vibratePulse(durationMs: Long = PULSE_MS)
 
-    /** Керування ліхтариком. true — команду виконано апаратно, false — лише імітація. */
+    /** Torch control. Returns true if done in hardware, false if only simulated. */
     fun toggleFlashlight(status: Boolean): Boolean
 
-    /** Вимкнути все та звільнити ресурси. */
+    /** Turns everything off and releases resources. */
     fun release()
 
     companion object {
@@ -44,10 +44,9 @@ interface IActuator {
 }
 
 /**
- * Актуатор-сервіс: керує апаратними ресурсами смартфона як промисловими виконавчими пристроями.
- *  • «Сирена»    — VibratorManager (API 31+) / Vibrator (API < 31) + ToneGenerator (потік ALARM);
- *  • «Прожектор» — CameraManager.setTorchMode() (дозвіл CAMERA не потрібен).
- * Перед кожним викликом перевіряється наявність апаратної можливості (Error Handling).
+ * Drives phone hardware as actuators: siren (vibration + ToneGenerator on the ALARM stream)
+ * and floodlight (CameraManager.setTorchMode, no CAMERA permission needed).
+ * Hardware availability is checked before every call.
  */
 class SmartActuator(context: Context) : IActuator {
 
@@ -66,7 +65,7 @@ class SmartActuator(context: Context) : IActuator {
         }
     private var toneGenerator: ToneGenerator? = null
 
-    /** Ідентифікатор камери зі спалахом (зазвичай задня камера "0"). */
+    /** Id of the camera with a flash (usually the back camera "0"). */
     private val torchCameraId: String? = findTorchCamera()
 
     override val hasFlash: Boolean =
@@ -77,7 +76,7 @@ class SmartActuator(context: Context) : IActuator {
 
     override var onTorchChanged: ((Boolean) -> Unit)? = null
 
-    /** Зворотний зв'язок від системи: реальний стан ліхтарика. */
+    /** System feedback: actual torch state. */
     private val torchCallback = object : CameraManager.TorchCallback() {
         override fun onTorchModeChanged(cameraId: String, enabled: Boolean) {
             if (cameraId == torchCameraId) onTorchChanged?.invoke(enabled)
@@ -90,7 +89,7 @@ class SmartActuator(context: Context) : IActuator {
     }
 
     override fun triggerAlarm() {
-        // 1) Вібрація: повторюваний патерн «сирени» (repeat = 0 — з початку патерну до stopAlarm)
+        // Vibration: repeat the siren pattern until stopAlarm()
         if (hasVibrator) {
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -110,7 +109,7 @@ class SmartActuator(context: Context) : IActuator {
             Log.w(TAG, "Вібромотор відсутній — вібрацію пропущено")
         }
 
-        // 2) Звук сирени: ToneGenerator не потребує аудіофайлів у ресурсах
+        // Tone: ToneGenerator needs no audio resources
         try {
             if (toneGenerator == null) toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, TONE_VOLUME)
             toneGenerator?.startTone(ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, SIREN_SOUND_MS)
@@ -145,7 +144,7 @@ class SmartActuator(context: Context) : IActuator {
 
     override fun toggleFlashlight(status: Boolean): Boolean {
         val id = torchCameraId
-        // Перевірка апаратної можливості перед викликом (в емуляторі спалаху може не бути)
+        // No flash (e.g. emulator): simulate in the UI
         if (!hasFlash || id == null) {
             Log.w(TAG, "FEATURE_CAMERA_FLASH відсутній — ліхтарик імітується в UI (status=$status)")
             return false
@@ -173,7 +172,7 @@ class SmartActuator(context: Context) : IActuator {
         toneGenerator = null
     }
 
-    /** Шукаємо камеру, у якої є спалах (CameraCharacteristics.FLASH_INFO_AVAILABLE). */
+    /** Finds a camera with FLASH_INFO_AVAILABLE. */
     private fun findTorchCamera(): String? = try {
         val cm = cameraManager
         cm?.cameraIdList?.firstOrNull { id ->
@@ -186,7 +185,7 @@ class SmartActuator(context: Context) : IActuator {
 
     companion object {
         const val TAG = "Actuator"
-        /** Пауза 0 мс → вібро 600 мс → пауза 300 мс → вібро 600 мс → пауза 300 мс (по колу). */
+        /** Vibrate 600 ms, pause 300 ms, repeat. */
         val ALARM_PATTERN = longArrayOf(0, 600, 300, 600, 300)
         const val SIREN_SOUND_MS = 3000
         const val TONE_VOLUME = 80

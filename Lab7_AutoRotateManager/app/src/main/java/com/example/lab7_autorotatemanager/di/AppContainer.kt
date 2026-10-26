@@ -20,15 +20,9 @@ import com.example.lab7_autorotatemanager.repository.SensorRepository
 import com.example.lab7_autorotatemanager.repository.SystemStateRepository
 
 /**
- * ЛР №7: Manual Dependency Injection.
- *
- * Контейнер — єдине місце, де створюються залежності. ViewModel отримують усе через конструктор
- * і не знають, звідки воно взялося. У тестах замість DefaultAppContainer можна передати
- * контейнер із фейками (FakeCloudApi, in-memory Room, фейковий актуатор).
- *
- *  • singletons (одні на весь процес): SensorHub, SystemStateRepository, AppDatabase, репозиторії;
- *  • factories (новий об'єкт для кожної ViewModel): SensorReader, SmartActuator, ConnectivityMonitor…
- *    — їх звільняє ViewModel в onCleared(), тому вони не можуть «пережити» свого власника.
+ * Manual dependency injection: the single place where dependencies are created.
+ * Singletons: SensorHub, SystemStateRepository, database, repositories.
+ * Factories (one per ViewModel): sensor reader, actuator, connectivity monitor… released in onCleared().
  */
 interface AppContainer {
     val deviceId: String
@@ -45,7 +39,7 @@ interface AppContainer {
     fun activityClassifier(): IActivityClassifier
 }
 
-/** Реальні реалізації. Отримує лише Application (а не Activity) — витоку Activity бути не може. */
+/** Production implementations. Holds only the Application, never an Activity. */
 class DefaultAppContainer(private val app: Application) : AppContainer {
 
     override val deviceId: String by lazy { deviceIdOf(app) }

@@ -13,9 +13,8 @@ import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
 
 /**
- * REST API Firebase Realtime Database.
- * POST /sensor_data/{deviceId}.json додає новий дочірній запис з унікальним ключем
- * і повертає {"name": "<ключ>"}.
+ * Firebase Realtime Database REST API.
+ * POST /sensor_data/{deviceId}.json adds a child with a generated key and returns {"name": "<key>"}.
  */
 interface FirebaseApi {
 
@@ -23,21 +22,21 @@ interface FirebaseApi {
     suspend fun push(
         @Path("deviceId") deviceId: String,
         @Body data: SensorData,
-        @Query("auth") auth: String? = null   // null → параметр не додається до URL
+        @Query("auth") auth: String? = null   // null → parameter is omitted
     ): Response<PushResponse>
 }
 
-/** Створення Retrofit-клієнта. */
+/** Builds the Retrofit client. */
 object CloudModule {
 
     const val HTTP_TAG = "CloudSync-HTTP"
 
-    /** Повертає null, якщо адресу бази не задано в local.properties. */
+    /** Returns null if the database URL is not set in local.properties. */
     fun createApi(baseUrl: String): FirebaseApi? {
         if (baseUrl.isBlank()) return null
         val url = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
 
-        // Логи Retrofit/OkHttp: метод, URL, тіло JSON, код відповіді (Logcat, тег CloudSync-HTTP)
+        // HTTP logs: method, URL, JSON body, status (Logcat tag CloudSync-HTTP)
         val logging = HttpLoggingInterceptor { message -> Log.d(HTTP_TAG, message) }.apply {
             level = HttpLoggingInterceptor.Level.BODY
         }

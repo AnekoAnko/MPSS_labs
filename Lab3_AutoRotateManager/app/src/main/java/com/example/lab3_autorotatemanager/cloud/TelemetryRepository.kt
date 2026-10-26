@@ -5,10 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
-/**
- * Repository — єдина точка доступу до хмари.
- * ViewModel не знає ні про Retrofit, ні про Firebase: вона отримує лише Result.
- */
+/** Single access point to the cloud. The ViewModel only gets a Result. */
 class TelemetryRepository(
     private val api: FirebaseApi?,
     private val authToken: String?
@@ -16,7 +13,7 @@ class TelemetryRepository(
 
     val isConfigured: Boolean get() = api != null
 
-    /** Відправляє один запис. Успіх — ключ запису у Firebase, помилка — виняток з описом. */
+    /** Uploads one record. Returns the Firebase key or an error. */
     suspend fun upload(data: SensorData): Result<String> = withContext(Dispatchers.IO) {
         try {
             val service = api ?: throw IllegalStateException("FIREBASE_DB_URL не задано в local.properties")
@@ -27,7 +24,7 @@ class TelemetryRepository(
             }
             Result.success(response.body()?.name ?: "—")
         } catch (e: CancellationException) {
-            throw e   // скасування корутини не є помилкою мережі
+            throw e   // cancellation is not a network error
         } catch (e: Exception) {
             Result.failure(e)
         }

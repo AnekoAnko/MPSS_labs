@@ -20,10 +20,7 @@ data class BleLogEntry(val time: String, val type: LogType, val message: String)
     override fun toString() = "$time [${type.tag}] $message"
 }
 
-/**
- * Журнал обміну: кожен запис одночасно йде в Logcat (тег BLE_MOCK)
- * і в StateFlow, який відображає «термінал» у додатку.
- */
+/** Exchange log: every entry goes to Logcat (tag BLE_MOCK) and to the in-app terminal. */
 class BleLogger(private val maxEntries: Int = 300) {
 
     private val _entries = MutableStateFlow<List<BleLogEntry>>(emptyList())
@@ -49,5 +46,5 @@ class BleLogger(private val maxEntries: Int = 300) {
     }
 }
 
-/** Байти у вигляді HEX-рядка: "50 49 4E 47". */
+/** Bytes as a hex string, e.g. "50 49 4E 47". */
 fun ByteArray.toHex(): String = joinToString(" ") { "%02X".format(it) }

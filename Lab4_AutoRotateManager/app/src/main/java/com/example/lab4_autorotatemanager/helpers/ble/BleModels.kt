@@ -2,7 +2,7 @@ package com.example.lab4_autorotatemanager.helpers.ble
 
 import java.util.UUID
 
-/** Знайдений під час сканування пристрій (аналог android.bluetooth.le.ScanResult). */
+/** Device found during a scan (like ScanResult). */
 data class BleDevice(
     val name: String,
     val address: String,
@@ -11,7 +11,7 @@ data class BleDevice(
     val serviceUuids: List<UUID> = emptyList()
 )
 
-/** Стани з'єднання (скінченний автомат). Стан Scanning веде сканер, див. BleUiState.isScanning. */
+/** Connection state machine. Scanning is tracked separately by the scanner. */
 enum class BleConnectionState(val label: String) {
     DISCONNECTED("Disconnected"),
     CONNECTING("Connecting…"),
@@ -20,9 +20,9 @@ enum class BleConnectionState(val label: String) {
     TRANSFERRING("Connected · Data transfer"),
     RECONNECTING("Reconnecting…");
 
-    /** Чи можна зараз виконувати GATT-операції (read/write). */
+    /** Whether GATT read/write is possible now. */
     val isLinkUp: Boolean get() = this == CONNECTED || this == TRANSFERRING
 }
 
-/** Повідомлення від пристрою (аналог onCharacteristicChanged). */
+/** Notification from the device (like onCharacteristicChanged). */
 data class BleNotification(val characteristic: UUID, val value: String)

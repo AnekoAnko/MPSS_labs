@@ -35,22 +35,19 @@ import com.example.lab6_autorotatemanager.monitor.MonitorAction
 import com.example.lab6_autorotatemanager.monitor.MonitorScreen
 import com.example.lab6_autorotatemanager.monitor.MonitorViewModel
 
-/**
- * Показує екрани і перетворює події життєвого циклу на Action — логіки тут немає.
- * Кожна ViewModel переживає поворот екрана.
- */
+/** Hosts the screens and forwards lifecycle events to ViewModels as actions. */
 class MainActivity : ComponentActivity() {
 
-    private val monitorVm: MonitorViewModel by viewModels()   // ЛР №1: сенсор і орієнтація
-    private val bleVm: BleViewModel by viewModels()           // ЛР №2: BLE-хаб
-    private val cloudVm: CloudViewModel by viewModels()       // ЛР №3: хмарна синхронізація
-    private val controlVm: ControlViewModel by viewModels()   // ЛР №4: виконавчі пристрої
-    private val analyticsVm: AnalyticsViewModel by viewModels() // ЛР №5: Room + графік
-    private val aiVm: AiViewModel by viewModels()               // ЛР №6: TensorFlow Lite
+    private val monitorVm: MonitorViewModel by viewModels()   // sensor and orientation
+    private val bleVm: BleViewModel by viewModels()           // BLE hub
+    private val cloudVm: CloudViewModel by viewModels()       // cloud sync
+    private val controlVm: ControlViewModel by viewModels()   // actuators
+    private val analyticsVm: AnalyticsViewModel by viewModels() // Room + chart
+    private val aiVm: AiViewModel by viewModels()               // on-device ML
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Створюємо ViewModel одразу: вони підписуються на сенсор і хмару, навіть якщо їхню вкладку ще не відкрито
+        // Create background ViewModels eagerly so they subscribe even before their tab is opened
         cloudVm
         controlVm
         analyticsVm
@@ -59,7 +56,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    var tab by rememberSaveable { mutableIntStateOf(0) }   // навігація — стан самого UI
+                    var tab by rememberSaveable { mutableIntStateOf(0) }   // selected tab is UI state
                     Column(Modifier.safeDrawingPadding()) {
                         TabRow(selectedTabIndex = tab) {
                             TABS.forEachIndexed { i, title ->
@@ -69,8 +66,8 @@ class MainActivity : ComponentActivity() {
                         when (tab) {
                             0 -> MonitorScreen(monitorVm) {
                                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    AiScreen(aiVm)        // ЛР №6: «AI Insights»
-                                    CloudScreen(cloudVm)  // ЛР №3
+                                    AiScreen(aiVm)        // AI Insights
+                                    CloudScreen(cloudVm)
                                 }
                             }
                             1 -> BleScreen(bleVm)
@@ -85,22 +82,22 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        cloudVm.onAction(CloudAction.Start)       // стежимо за мережею (черга Pending)
-        controlVm.onAction(ControlAction.Start)   // слухаємо команди з Firebase
+        cloudVm.onAction(CloudAction.Start)       // watch the network (pending queue)
+        controlVm.onAction(ControlAction.Start)   // listen for Firebase commands
     }
 
     override fun onResume() {
         super.onResume()
-        monitorVm.onAction(MonitorAction.Start)   // екран видно → слухаємо сенсор
+        monitorVm.onAction(MonitorAction.Start)   // screen visible: start the sensor
     }
 
     override fun onPause() {
-        monitorVm.onAction(MonitorAction.Stop)    // екран сховано → відписуємось, економимо батарею
+        monitorVm.onAction(MonitorAction.Stop)    // screen hidden: stop the sensor to save battery
         super.onPause()
     }
 
     override fun onStop() {
-        // Під час повороту екрана Activity перестворюється — мережеві підписки не перепідключаємо
+        // Skip on rotation: the Activity is recreated, network subscriptions stay alive
         if (!isChangingConfigurations) {
             cloudVm.onAction(CloudAction.Stop)
             controlVm.onAction(ControlAction.Stop)

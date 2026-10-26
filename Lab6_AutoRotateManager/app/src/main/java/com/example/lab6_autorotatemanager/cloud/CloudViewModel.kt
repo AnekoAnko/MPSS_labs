@@ -26,9 +26,8 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * ЛР №3: хмарна синхронізація. Отримує виміри з SensorHub, вирішує, коли їх відправляти
- * (SendPolicy), і викликає repository.save(). Куди і як писати (хмара, черга Pending,
- * Room) вирішує SensorRepository — ViewModel лише перетворює Result на State та Event.
+ * Cloud sync: decides when to send samples (SendPolicy) and calls repository.save().
+ * The repository handles Room, the cloud and the pending queue; this class maps results to state.
  */
 class CloudViewModel(
     private val repository: SensorRepository = AppGraph.sensorRepository,
@@ -39,7 +38,7 @@ class CloudViewModel(
 ) : ViewModel() {
 
     private val policy = SendPolicy()
-    private val sendMutex = Mutex()                 // відправки йдуть по одному
+    private val sendMutex = Mutex()                 // one upload at a time
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.US)
 
     @Volatile
@@ -59,17 +58,17 @@ class CloudViewModel(
             _state.update { it.copy(status = SyncStatus.ERROR, lastError = "Не задано FIREBASE_DB_URL") }
         }
 
-        // Дані акселерометра (після фільтра ЛР №1)
+        // Filtered accelerometer data
         viewModelScope.launch {
             hub.filtered.collect { s -> onSample(s.x, s.y, s.z, system.orientation.value) }
         }
 
-        // Скільки записів чекає відправки — рахує репозиторій
+        // Pending count from the repository
         viewModelScope.launch {
             repository.pendingCount.collect { n -> _state.update { it.copy(pendingCount = n) } }
         }
 
-        // Реакція на зміну стану мережі
+        // React to network changes
         viewModelScope.launch {
             var wasOnline = monitor.isOnline.value
             monitor.isOnline.collect { online ->
@@ -88,7 +87,7 @@ class CloudViewModel(
             }
         }
 
-        // Періодична відправка: кожні 5 с, якщо є нові дані
+        // Periodic send every 5 s if there is new data
         viewModelScope.launch {
             while (isActive) {
                 delay(500)
@@ -100,11 +99,11 @@ class CloudViewModel(
         }
     }
 
-    // ЄДИНИЙ вхід у ViewModel — всі дії приходять сюди
+    // Single entry point for UI actions
     fun onAction(action: CloudAction) {
         when (action) {
-            CloudAction.Start -> monitor.start()   // Activity видно → стежимо за мережею
-            CloudAction.Stop -> monitor.stop()     // додаток згорнуто → знімаємо NetworkCallback
+            CloudAction.Start -> monitor.start()   // app visible: watch the network
+            CloudAction.Stop -> monitor.stop()     // app hidden: unregister the callback
             is CloudAction.SetEnabled -> setEnabled(action.enabled)
             CloudAction.SendNow -> sendNow()
         }
@@ -133,8 +132,6 @@ class CloudViewModel(
         else enqueue(sample.copy(timestamp = now()), reason = "вручну")
     }
 
-    // ------------------------------------------------------------------ відправка
-
     private fun enqueue(sample: SensorReading, reason: String) {
         policy.markSent(sample, now())
         viewModelScope.launch { sendMutex.withLock { deliver(sample, reason) } }
@@ -148,7 +145,7 @@ class CloudViewModel(
                 status = if (online) SyncStatus.SENDING else SyncStatus.PENDING
             )
         }
-        // Спершу те, що накопичилось, — щоб записи йшли в хмару в порядку вимірів
+        // Send the backlog first to keep records in order
         if (online && _state.value.pendingCount > 0) flushPending(announce = false)
 
         repository.save(sample)
@@ -163,7 +160,7 @@ class CloudViewModel(
             }
     }
 
-    /** Відправляє накопичені записи через репозиторій. */
+    /** Sends queued records through the repository. */
     private suspend fun flushPending(announce: Boolean) {
         if (_state.value.pendingCount == 0) return
         log("Відправка черги Pending: ${_state.value.pendingCount} записів")
@@ -180,7 +177,7 @@ class CloudViewModel(
     private fun onUploaded(key: String, reason: String) {
         _state.update {
             it.copy(
-                status = SyncStatus.SUCCESS,   // скільки ще в черзі — окремо, у pendingCount
+                status = SyncStatus.SUCCESS,   // pending count is tracked separately
                 sentCount = it.sentCount + 1,
                 lastSuccessTime = timeFormat.format(Date()),
                 lastRecordKey = key,
