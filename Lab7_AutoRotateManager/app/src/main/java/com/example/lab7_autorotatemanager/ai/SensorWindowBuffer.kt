@@ -1,7 +1,5 @@
 package com.example.lab7_autorotatemanager.ai
 
-import com.example.lab7_autorotatemanager.helpers.SensorReader
-
 /**
  * Circular buffer holding the last [windowSize] accelerometer samples (≈ 1 s at 20 Hz).
  * New samples overwrite the oldest one at [head], so nothing is allocated per event.
@@ -84,8 +82,6 @@ class SensorWindowBuffer(
         const val HOP = 5
         /** 20 Hz = 50 ms period; 45 ms leaves room for jitter. */
         const val MIN_PERIOD_NS = 45_000_000L
-        /** Sensor sampling period for registerListener, µs (20 Hz). */
-        const val SAMPLING_PERIOD_US = SensorReader.PERIOD_20_HZ_US
         const val GRAVITY = 9.80665f
     }
 }

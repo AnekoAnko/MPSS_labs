@@ -26,8 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-/** Color used for the class label and probability bar. */
-private fun ActivityClass.color(): Color = when (this) {
+/** Color used for the class label and probability bar (also on the dashboard). */
+fun ActivityClass.color(): Color = when (this) {
     ActivityClass.STILL -> Color(0xFF546E7A)
     ActivityClass.WALKING -> Color(0xFF2E7D32)
     ActivityClass.RUNNING -> Color(0xFFE65100)

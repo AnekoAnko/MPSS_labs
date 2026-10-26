@@ -33,20 +33,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.lab7_autorotatemanager.ai.ActivityClass
+import com.example.lab7_autorotatemanager.ai.color
 import com.example.lab7_autorotatemanager.repository.ActuatorType
 
 private val Green = Color(0xFF2E7D32)
 private val Red = Color(0xFFC62828)
 private val Amber = Color(0xFFF9A825)
 private val Grey = Color(0xFF9E9E9E)
-
-private fun ActivityClass.color(): Color = when (this) {
-    ActivityClass.STILL -> Color(0xFF546E7A)
-    ActivityClass.WALKING -> Green
-    ActivityClass.RUNNING -> Color(0xFFE65100)
-    ActivityClass.ANOMALY -> Red
-}
 
 /** Dashboard: renders state, sends actions, shows events. */
 @Composable

@@ -17,9 +17,9 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 
 /**
- * Single source of data. ViewModels call save() and read history as Flow; they don't know about Retrofit or Room.
- * save() writes to Room first, then uploads; without network the record stays with synced = false
- * and syncPending() sends it later. All DB and network work runs on Dispatchers.IO.
+ * Single source of data. ViewModels call save()/syncPending() and read history as Flow;
+ * they don't know about Retrofit or Room. Offline-first: AnalyticsViewModel saves to Room,
+ * CloudViewModel uploads the queue with syncPending(). All DB and network work runs on Dispatchers.IO.
  */
 class SensorRepository(
     private val api: CloudApi?,
@@ -33,6 +33,7 @@ class SensorRepository(
 
     /** Uploads run one at a time, so a record is never sent twice. */
     private val uploadMutex = Mutex()
+    private var insertsSinceCleanup = 0
 
     val isCloudConfigured: Boolean get() = api != null
 
@@ -41,16 +42,18 @@ class SensorRepository(
     val storageFull: StateFlow<Boolean> = _storageFull.asStateFlow()
 
     /**
-     * Saves a sample: 1) to Room (synced = false), 2) to the cloud, then marks it synced.
-     * DB errors throw; network errors return Result.failure and the record waits in the queue.
+     * Stores a sample in Room (synced = false); CloudViewModel uploads it later via syncPending().
+     * Every [CLEANUP_EVERY] inserts, records older than [RETENTION_MS] are deleted.
+     * If storage is full and nothing can be freed, the sample goes straight to the cloud.
+     * Returns Result.failure on DB errors (and on upload errors in the storage-full case).
      */
-    suspend fun save(reading: SensorReading): Result<String> = withContext(io) {
-        val id = insertOrNull(reading.toRecord())                  // 1. local first
-            ?: return@withContext uploadMutex.withLock { push(reading.toPayload(deviceId)) }   // disk full → cloud only
-        uploadMutex.withLock {
-            if (dao.isSynced(id) == true) return@withLock Result.success("—")   // already sent by syncPending()
-            push(reading.toPayload(deviceId))                      // 2. then upload
-                .onSuccess { dao.markSynced(id) }
+    suspend fun save(reading: SensorReading): Result<Unit> = call {
+        if (insertOrNull(reading.toRecord()) == null) {
+            uploadMutex.withLock { push(reading.toPayload(deviceId)).getOrThrow() }   // disk full → cloud only
+        } else if (++insertsSinceCleanup >= CLEANUP_EVERY) {
+            insertsSinceCleanup = 0
+            val removed = dao.deleteOlderThan(reading.timestamp - RETENTION_MS)
+            if (removed > 0) Log.d(TAG, "Ротація: видалено $removed старих записів")
         }
     }
 
@@ -77,24 +80,27 @@ class SensorRepository(
         return null
     }
 
-    /** Uploads everything left in the queue. Returns the number of records sent. */
-    suspend fun syncPending(): Int = withContext(io) {
+    /**
+     * Uploads queued records oldest first and marks each one synced.
+     * Stops at the first failure; the rest stay in the queue.
+     */
+    suspend fun syncPending(): SyncResult = withContext(io) {
         uploadMutex.withLock {
-            var sent = 0
-            for (record in dao.unsynced(SYNC_BATCH)) {
-                if (push(record.toReading().toPayload(deviceId)).isFailure) break   // network lost again
-                dao.markSynced(record.id)
-                sent++
+            var result = SyncResult()
+            val queue = call { dao.unsynced(SYNC_BATCH) }
+                .getOrElse { return@withLock result.copy(error = it) }
+            for (record in queue) {
+                val payload = record.toReading().toPayload(deviceId)
+                val key = call { push(payload).getOrThrow().also { dao.markSynced(record.id) } }
+                    .getOrElse { return@withLock result.copy(error = it) }
+                result = result.copy(sent = result.sent + 1, lastKey = key, lastPayloadJson = gson.toJson(payload))
             }
-            sent
+            result
         }
     }
 
     /** Number of records not yet uploaded. */
     val pendingCount: Flow<Int> = dao.observeUnsyncedCount().flowOn(io)
-
-    /** JSON that will be sent to the cloud. */
-    fun payloadJson(reading: SensorReading): String = gson.toJson(reading.toPayload(deviceId))
 
     /** Writes the actual actuator state to status/{deviceId}. */
     suspend fun reportStatus(deviceId: String, report: ActuatorReport): Result<Unit> = call {
@@ -116,9 +122,7 @@ class SensorRepository(
 
     suspend fun statsSince(since: Long): PeriodStats = withContext(io) { dao.statsSince(since) }
 
-    suspend fun deleteOlderThan(before: Long): Int = withContext(io) { dao.deleteOlderThan(before) }
-
-    suspend fun clear() = withContext(io) { dao.deleteAll() }
+    suspend fun clear(): Result<Unit> = call { dao.deleteAll() }
 
     private suspend fun push(payload: SensorPayload): Result<String> = call {
         val response = requireApi().push(payload.deviceId, payload, authToken)
@@ -126,7 +130,7 @@ class SensorRepository(
         response.body()?.name ?: "—"
     }
 
-    /** Runs network calls on IO; cancellation is not treated as a network error. */
+    /** Runs DB/network work on IO and wraps exceptions in Result; cancellation is rethrown. */
     private suspend fun <T> call(block: suspend () -> T): Result<T> = withContext(io) {
         try {
             Result.success(block())
@@ -148,6 +152,19 @@ class SensorRepository(
         const val SYNC_BATCH = 500
         /** How many oldest uploaded records to delete when storage is full. */
         const val EMERGENCY_DELETE = 1_000
+        /** Run retention cleanup every N inserts. */
+        const val CLEANUP_EVERY = 100
+        /** Keep records for 24 hours. */
+        const val RETENTION_MS = 24 * 60 * 60 * 1000L
         const val TAG = "SensorRepo"
     }
 }
+
+/** Result of one syncPending() run. */
+data class SyncResult(
+    val sent: Int = 0,
+    val lastKey: String? = null,
+    val lastPayloadJson: String? = null,
+    /** First upload error; null if the whole queue was sent. */
+    val error: Throwable? = null
+)

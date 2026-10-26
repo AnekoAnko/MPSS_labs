@@ -1,7 +1,7 @@
 package com.example.lab7_autorotatemanager.repository
 
+import com.example.lab7_autorotatemanager.control.DecisionEngine
 import kotlin.math.abs
-import kotlin.math.acos
 import kotlin.math.sqrt
 
 /** Value checked by a rule. */
@@ -25,7 +25,7 @@ enum class Metric(val label: String, val unit: String) {
             Z -> z
             MAGNITUDE -> m
             DYNAMIC -> abs(m - GRAVITY)
-            TILT -> if (m < 1e-3f) 0f else Math.toDegrees(acos((y / m).coerceIn(-1f, 1f).toDouble())).toFloat()
+            TILT -> DecisionEngine.tiltDegrees(x, y, z)
         }
     }
 

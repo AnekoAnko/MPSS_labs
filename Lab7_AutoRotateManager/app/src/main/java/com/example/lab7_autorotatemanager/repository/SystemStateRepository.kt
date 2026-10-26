@@ -115,7 +115,6 @@ class SystemStateRepository {
     fun setAlarmActive(value: Boolean) { _alarmActive.value = value }
     fun setAiActivity(value: ActivityClass) { _aiActivity.value = value }
     fun setAi(value: AiSnapshot) { _ai.value = value }
-    fun setActuators(value: ActuatorSnapshot) { _actuators.value = value }
     fun updateActuators(change: (ActuatorSnapshot) -> ActuatorSnapshot) { _actuators.value = change(_actuators.value) }
     fun setCloud(value: CloudLink) { _cloud.value = value }
     fun setBle(value: BleLink) { _ble.value = value }

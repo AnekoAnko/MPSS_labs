@@ -21,7 +21,7 @@ class AppViewModelFactory(private val c: AppContainer) : ViewModelProvider.Facto
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when (modelClass) {
         MonitorViewModel::class.java -> MonitorViewModel(c.sensorReader(), c.sensorHub, c.systemState)
         BleViewModel::class.java -> BleViewModel(c.bluetoothEnvironment(), c.systemState)
-        CloudViewModel::class.java -> CloudViewModel(c.sensorRepository, c.connectivityMonitor(), c.sensorHub, c.systemState, c.deviceId)
+        CloudViewModel::class.java -> CloudViewModel(c.sensorRepository, c.connectivityMonitor(), c.systemState, c.deviceId)
         ControlViewModel::class.java -> ControlViewModel(
             c.actuator(), c.remoteCommandSource(), c.sensorRepository, c.sensorHub, c.systemState, c.deviceId
         )

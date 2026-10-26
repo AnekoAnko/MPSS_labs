@@ -27,10 +27,6 @@ interface SensorDao {
     )
     fun observeLatest(limit: Int): Flow<List<SensorRecord>>
 
-    /** Same, one-shot (for checks and tests). */
-    @Query("SELECT * FROM sensor_records ORDER BY timestamp DESC LIMIT :limit")
-    suspend fun getLatest(limit: Int): List<SensorRecord>
-
     /** Last [limit] records, newest first (dashboard). */
     @Query("SELECT * FROM sensor_records ORDER BY timestamp DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<SensorRecord>>
@@ -63,10 +59,6 @@ interface SensorDao {
     /** Marks a record as uploaded. */
     @Query("UPDATE sensor_records SET synced = 1 WHERE id = :id")
     suspend fun markSynced(id: Long)
-
-    /** Whether a record was uploaded (null if it no longer exists). */
-    @Query("SELECT synced FROM sensor_records WHERE id = :id")
-    suspend fun isSynced(id: Long): Boolean?
 
     /** Live count of records waiting for upload. */
     @Query("SELECT COUNT(*) FROM sensor_records WHERE synced = 0")
